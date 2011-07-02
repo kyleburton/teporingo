@@ -84,5 +84,27 @@
 
 
 
+(defn make-circuit-breaker [inner-fn open-fn? on-err-fn!]
+  (let [state (atom {:open-fn?  open-fn?
+                     :on-err-fn! on-err-fn!})]
+    (fn [& args]
+      (cond
+        ((:open-fn? @state) state)
+        (do
+          (log/infof "breaker fn indicated breakre is open.")
+         (throw (BreakerOpenException. "Breaker Open")))
+
+        :else
+        (try
+         (aprog1
+             (apply inner-fn args)
+           (log/infof "inner function success"))
+         (catch Exception ex
+           (log/infof ex "inner function failure, calling breaker open function, then throwing: %s" ex)
+           (on-err-fn! state ex)
+           (throw (BreakerOpenException. (format "Breaker Opened, inner fn failed: %s" ex)
+                                         ex))))))))
+
+
 
 

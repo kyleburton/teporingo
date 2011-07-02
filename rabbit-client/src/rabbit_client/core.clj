@@ -193,36 +193,31 @@
       :else
       (raise "Error: unrecognized listener type: %s (not one of: :consumer or :return-listener)" listener-type)))  )
 
-(defn make-publish-circuit-breaker [opts]
-  (breaker/basic-breaker
-   (fn [conn exchange routing-key mandatory immediate props body]
+(defonce breaker-agent (agent
+                    {:connections []}))
 
-     (try
-      (ensure-publisher conn)
-      (let [channel (:channel @conn)]
-        (if channel
-          (do
-            (.basicPublish
-             channel
-             exchange
-             routing-key
-             mandatory
-             immediate
-             props
-             body)
-            (if (:use-transactions conn)
-              (.txCommit channel))
-            {:res true :ex nil})
-          {:res false :ex nil}))
-      (catch AlreadyClosedException ex
-        (log/errorf ex "Error publishing to %s: %s" @conn ex)
-        (close-connection! conn)
-        (throw ex))
-      (catch IOException ex
-        (log/errorf ex "Error publishing to %s: %s" @conn ex)
-        (close-connection! conn)
-        (throw ex))))
-   opts))
+(comment
+  (agent-error breaker-agent)
+ )
+
+(defn breaker-agent-open-connection [state conn]
+  (try
+   (log/infof "breaker-agent-open-connection: re-connecting: %s" @conn)
+   (close-connection! conn)
+   (log/infof "breaker-agent-open-connection: conn closed-quietly: %s" @conn)
+   (ensure-connection! conn)
+   (swap! conn assoc :closed? false)
+   (log/infof "breaker-agent-open-connection: ensured-connection, no longer closed: %s" @conn)
+   (catch Exception ex
+     (log/warnf "Error re-establishing connection, will retry: %s %s" ex @conn)
+     (.start
+      (Thread.
+       ;; TODO: make this a daemon thread, and allow the infinite restart loop to be stopped / broken out of...
+       (fn []
+         (Thread/sleep 250)
+         (log/warnf "Delayed reconnect, re-sending off after error connecting previous time...")
+         (send-off breaker-agent breaker-agent-open-connection conn))))))
+  state)
 
 (defn ensure-publisher [conn]
   (if (contains? conn :connections)
@@ -265,6 +260,37 @@
       {:res true :ex nil}))
   conn)
 
+(defn make-publish-circuit-breaker [opts]
+  (breaker/basic-breaker
+   (fn [conn exchange routing-key mandatory immediate props body]
+     (try
+      (ensure-publisher conn)
+      (let [channel (:channel @conn)]
+        (if channel
+          (do
+            (.basicPublish
+             channel
+             exchange
+             routing-key
+             mandatory
+             immediate
+             props
+             body)
+            (if (:use-transactions conn)
+              (.txCommit channel))
+            {:res true :ex nil})
+          {:res false :ex nil}))
+      (catch AlreadyClosedException ex
+        (log/errorf ex "Error publishing to %s: %s" @conn ex)
+        (close-connection! conn)
+        (throw ex))
+      (catch IOException ex
+        (log/errorf ex "Error publishing to %s: %s" @conn ex)
+        (close-connection! conn)
+        (throw ex))))
+   opts))
+
+
 ;; NB: for performance, publish-1's use of ensure-publisher will have
 ;; to implement a circuit breaker - the timeout on establishing a
 ;; connection takes way too long for this to be a viable approach -
@@ -288,6 +314,33 @@
    (catch BreakerOpenException ex
      (log/errorf ex "Error: conn[%s] circuit breaker is open: %s" @conn ex)
      {:res false :ex ex})))
+
+(defn make-pub-agent-breaker [conn]
+  (breaker/make-circuit-breaker
+   (fn inner-fn [the-conn exchange routing-key mandatory immediate props body]
+     (log/infof "inner-fn: calling basicPublish")
+     (do
+       (let [channel (:channel @conn)]
+        (.basicPublish
+         channel
+         exchange
+         routing-key
+         mandatory
+         immediate
+         props
+         body)
+        (if (:use-transactions conn)
+          (.txCommit channel)))
+       {:res true :ex nil}))
+   (fn closed-fn? [state]
+     (log/infof "checking state to see if its open: %s" @conn)
+     (:closed? @conn))
+   (fn err-fn [state ex]
+     ;; (swap! conn update-in [:errors] conj ex)
+     (swap! conn assoc :closed? true)
+     (log/warnf "Sending conneciton to agent for re-opening: %s" @conn)
+     (send-off breaker-agent breaker-agent-open-connection conn))))
+
 
 (defn publish [^Map publisher ^String exchange ^String routing-key ^Boolean mandatory ^Boolean immediate ^AMQP$BasicProperties props ^bytes body retries & [errors]]
   (when (< retries 1)
@@ -385,7 +438,7 @@
                   (log/infof "CONSUMER: body='%s'" msg))
                 (.basicAck (:channel @conn)
                            (.getDeliveryTag envelope) ;; delivery tag
-                           false)                      ;; multiple
+                           false)                     ;; multiple
                 (catch Exception ex
                   (log/errorf ex "Consumer Error: %s" ex))))})
            (make-default-return-listener conn)]}))
@@ -411,7 +464,7 @@
                   (log/infof "CONSUMER: body='%s'" msg))
                 (.basicAck (:channel @conn)
                            (.getDeliveryTag envelope) ;; delivery tag
-                           false)                      ;; multiple
+                           false)                     ;; multiple
                 (catch Exception ex
                   (log/errorf ex "Consumer Error: %s" ex))))})
            (make-default-return-listener conn)]}))
@@ -421,39 +474,53 @@
   (shutdown-consumer-quietly! *c2*)
 
 
-  (do
-    (def *foo*
-         {:connections [(atom {:name "rabbit-1"
-                               :port 25671
-                               :use-confirm true
-                               :connection-timeout 10
-                               :queue-name "foofq"
-                               :routing-key ""
-                               :vhost "/"
-                               :exchange-name "/foof"
-                               :publish (make-publish-circuit-breaker
-                                         {:retry-after 10})})
-                        (atom {:name "rabbit-2"
-                               :port 25672
-                               :connecton-timeout 10
-                               :use-confirm true
-                               :queue-name "foofq"
-                               :routing-key "#"
-                               :vhost "/"
-                               :exchange-name "/foof"
-                               :publish (make-publish-circuit-breaker
-                                         {:retry-after 10})})]}))
+  (def *foo*
+       (let [connections
+             {:connections [(atom {:name "rabbit-1"
+                                   :port 25671
+                                   :use-confirm true
+                                   :connection-timeout 10
+                                   :queue-name "foofq"
+                                   :routing-key ""
+                                   :vhost "/"
+                                   :exchange-name "/foof"
+                                   :closed? true
+                                   #_:publish
+                                   #_(make-publish-circuit-breaker
+                                      {:retry-after 10})})
+                            (atom {:name "rabbit-2"
+                                   :port 25672
+                                   :connecton-timeout 10
+                                   :use-confirm true
+                                   :queue-name "foofq"
+                                   :routing-key "#"
+                                   :vhost "/"
+                                   :exchange-name "/foof"
+                                   :closed? true
+                                   #_:publish
+                                   #_(make-publish-circuit-breaker
+                                      {:retry-after 10})})]}]
+         (doseq [conn (:connections connections)]
+           (swap! conn
+                  assoc
+                  :errors []
+                  :publish
+                  (make-pub-agent-breaker conn))
+           (send breaker-agent breaker-agent-open-connection conn))
+         connections))
+
+  @(first (:connections *foo*))
+  @(second (:connections *foo*))
 
   (close-connection! *foo*)
   (.getConfirmListener (:channel @(first (:connections *foo*))))
-
 
   (.getSocketFactory (:factory @(first (:connections *foo*))))
 
   (.getConnectionTimeout (:factory @(first (:connections *foo*))))
   (.getConnectionTimeout (:factory @(second (:connections *foo*))))
 
-  (dotimes [ii 100]
+  (dotimes [ii 1000]
     (try
      (publish
       *foo*
@@ -466,7 +533,7 @@
       2)
      (printf "SUCCESS[%s]: Published to at least 1 broker.\n" ii)
      (catch Exception ex
-       (printf "FAILURE[%s] %s\n" ii ex))))
+       (log/warnf ex "FAILURE[%s] %s\n" ii ex))))
 
 
 
