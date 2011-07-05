@@ -15,7 +15,7 @@ portable to other broker implementations or other AMQP versions.
 
 h3. Dependencies
 
-The library uses the rabbitmq-java-client library version 2.5.0, and uses AMPP
+The library uses the rabbitmq-java-client library version 2.5.0, and uses AMQP
 0.9 by default.
 
 h3. Design
