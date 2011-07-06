@@ -1,6 +1,9 @@
+require 'pp'
 require 'yaml'
 
 $rabbit_config = YAML.load_file(File.join($teporingo_root,'config','rabbitmq.yml'))["rabbit"]
+
+#pp $rabbit_config
 
 def nodename node
   "#{node["name"]}@#{node["host"]}"
@@ -19,15 +22,28 @@ def rabbitmqctl node, action, *fields
   puts ""
 end
 
+def rabbit_url
+  $rabbit_config["download_url"]
+end
+
+def rabbit_archive
+  rabbit_url.split('/')[-1]
+end
+
+def rabbit_ver
+  File.basename(rabbit_archive,".tar.gz").split('-')[-1]
+end
+
+def rabbit_dir
+  "rabbitmq_server-#{rabbit_ver}"
+end
+
+
 namespace :teporingo do
   namespace :rabbit do
     desc "Install Rabbitmq locally"
     task :install do
       Dir.chdir "rabbitmq-server"
-      rabbit_url = "http://www.rabbitmq.com/releases/rabbitmq-server/v2.5.1/rabbitmq-server-generic-unix-2.5.1.tar.gz"
-      rabbit_archive = rabbit_url.split('/')[-1]
-      rabbit_ver = File.basename(rabbit_archive,".tar.gz").split('-')[-1]
-      rabbit_dir = "rabbitmq_server-#{rabbit_ver}"
       unless File.exist? rabbit_archive
         system "wget", rabbit_url
       end
@@ -46,7 +62,7 @@ namespace :teporingo do
       name = node["name"]
       tname = "start_#{name}"
       desc "Start #{name}"
-      task tname.to_sym do 
+      task tname.to_sym => [:install] do 
         ENV['RABBITMQ_NODE_IP_ADDRESS'] = node["ip"] || '127.0.0.1'
         ENV['RABBITMQ_NODE_PORT']       = node["port"].to_s
         ENV['RABBITMQ_NODENAME']        = nodename(node)
@@ -57,7 +73,7 @@ namespace :teporingo do
           FileUtils.mkdir_p(dir) unless File.exist?(dir)
         end
 
-        system "rabbitmq-server"
+        system "#{$teporingo_root}/rabbitmq-server/#{rabbit_dir}/sbin/rabbitmq-server"
       end
     end
 
