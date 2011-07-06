@@ -1,0 +1,38 @@
+# config <%= role %>
+daemonize no
+pidfile <%= $teporingo_root %>/redis/<%= pidfile %>
+port <%= port %>
+bind 127.0.0.1
+timeout 300
+loglevel verbose
+logfile stdout
+databases 16
+save 900 1
+save 300 10
+save 60 10000
+rdbcompression yes
+dbfilename <%= $teporingo_root %>/redis/<%= dbfilename %>
+dir <%= dir %>
+<% if slave %>
+
+slaveof 127.0.0.1 <%= master_port %>
+slave-serve-stale-data no
+
+<% end %>
+maxclients 16
+appendonly yes
+appendfilename <%= $teporingo_root %>/redis/<%= appendfilename %>
+appendfsync everysec
+no-appendfsync-on-rewrite no
+vm-enabled no
+vm-swap-file <%= $teporingo_root %>/redis/<%= vm_swap_file %>
+vm-max-memory 0
+vm-page-size 32
+vm-pages 134217728
+vm-max-threads 4
+hash-max-zipmap-entries 512
+hash-max-zipmap-value 64
+list-max-ziplist-entries 512
+list-max-ziplist-value 64
+set-max-intset-entries 512
+activerehashing yes

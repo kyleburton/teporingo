@@ -1,0 +1,3 @@
+---
+redis:
+  download_url: http://redis.googlecode.com/files/redis-2.2.11.tar.gz
