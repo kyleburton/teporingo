@@ -1,0 +1,20 @@
+global
+  daemon
+  maxconn <%= $haproxy_config["haproxy"]["config"]["global"]["maxconn"] %>
+  log <%= $teporingo_root %>/haproxy/haproxy.log user
+  pidfile <%= $teporingo_root %>/haproxy/<%= $haproxy_config["haproxy"]["config"]["global"]["pidfile"] %>
+
+defaults
+  retries <%= $haproxy_config["haproxy"]["config"]["defaults"]["retries"] %>
+  contimeout <%= $haproxy_config["haproxy"]["config"]["defaults"]["contimeout"] %>
+  clitimeout <%= $haproxy_config["haproxy"]["config"]["defaults"]["clitimeout"] %>
+  srvtimeout <%= $haproxy_config["haproxy"]["config"]["defaults"]["srvtimeout"] %>
+
+<% $haproxy_config["haproxy"]["config"]["nodes"].each do |node| %>
+listen <%= node["listen"] %>
+  mode <%= node["mode"] %>
+  balance <%= node["balance"] %>
+  option <%= node["option"] %>
+  server <%= node["server"] %>
+<% end %>
+

@@ -1,4 +1,9 @@
+require 'erb'
+require 'pp'
+
 $haproxy_config = YAML.load_file(File.join($teporingo_root,'config','haproxy.yml'))
+
+#pp $haproxy_config
 
 def haproxy_download_url
   $haproxy_config["haproxy"]["download_url"]
@@ -38,9 +43,22 @@ namespace :teporingo do
       end
     end
 
+    desc "generate configuration file"
+    task :gen_config do
+      haproxy_config_file = "haproxy/#{haproxy_dir}/haproxy-amqp.conf"
+      unless File.exist? haproxy_config_file
+        haproxy_erb_template = File.join($teporingo_root,"lib","tasks","teporingo","haproxy","haproxy-amqp.conf.erb")
+        template = File.read(haproxy_erb_template)
+        result = ERB.new(template).result()
+        File.open(haproxy_config_file,"w") do |f|
+          f.puts result
+        end
+      end
+    end
+
     desc "run haproxy"
-    task :run => [:install] do
-      cmd = %W|haproxy/#{haproxy_dir}/haproxy -V -db -f config/haproxy/haproxy-amqp.conf|
+    task :run => [:install, :gen_config] do
+      cmd = %W|haproxy/#{haproxy_dir}/haproxy -V -db -f haproxy/#{haproxy_dir}/haproxy-amqp.conf|
       puts cmd.inspect
       system *cmd
     end
