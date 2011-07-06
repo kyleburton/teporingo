@@ -1,2 +1,18 @@
-- allow teporingo publisher configuration to be pulled from config/teporingo.yml
+Message De-duplication:
+  - prototype redis connections: use jedis
+  - publish to gen UUID and wrap message body
+  - consumers strip additional envelope, call into redis to lock UUID
+
+De-dupe Key Store / Lock Manager
+  - in order to not have unbounded growth in the # of keys
+    redis must store, implement an expiration policy
+  - key expiration policy based on age K[a]
+  - purge keys
+  - consumers route to dead letter queue / table if/when message being processed has
+    an age of M[a] >= 0.9 * K[a]
+    
+
+
+Configuration:
+- allow teporingo (Clojure rabbit client) publisher configuration to be pulled from config/teporingo.yml
 
