@@ -1,5 +1,2 @@
-- implement haproxy installer
-  - generate haproxy config from rabbit.yml
-  - have haproxy runner use this configuration
 - allow teporingo publisher configuration to be pulled from config/teporingo.yml
 
