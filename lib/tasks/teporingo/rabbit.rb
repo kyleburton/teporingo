@@ -1,10 +1,9 @@
-RABBIT_NODES = [
-  { :name => 'rabbit01', :host => 'localhost', :port => 15671 },
-  { :name => 'rabbit02', :host => 'localhost', :port => 15672 }
-]
+require 'yaml'
+
+$rabbit_config = YAML.load_file(File.join($teporingo_root,'config','rabbitmq.yml'))["rabbit"]
 
 def nodename node
-  "#{node[:name]}@#{node[:host]}"
+  "#{node["name"]}@#{node["host"]}"
 end
 
 def rabbitmqctl node, action, *fields
@@ -22,21 +21,37 @@ end
 
 namespace :teporingo do
   namespace :rabbit do
-    desc "tail log files"
-    task :tail_logs do
-      system "bash", "-c", "tail -f ~/tmp/harabbit/rabbit*/logs/rabbit0*.log"
+    desc "Install Rabbitmq locally"
+    task :install do
+      Dir.chdir "rabbitmq-server"
+      rabbit_url = "http://www.rabbitmq.com/releases/rabbitmq-server/v2.5.1/rabbitmq-server-generic-unix-2.5.1.tar.gz"
+      rabbit_archive = rabbit_url.split('/')[-1]
+      rabbit_ver = File.basename(rabbit_archive,".tar.gz").split('-')[-1]
+      rabbit_dir = "rabbitmq_server-#{rabbit_ver}"
+      unless File.exist? rabbit_archive
+        system "wget", rabbit_url
+      end
+
+      unless File.exist? rabbit_dir
+        system "tar", "xzvf", rabbit_archive
+      end
     end
 
-    RABBIT_NODES.each do |node|
-      name = node[:name]
+    desc "tail log files"
+    task :tail_logs do
+      system "bash", "-c", "tail -f #{$teporingo_root}/tmp/harabbit/rabbit*/logs/rabbit0*.log"
+    end
+
+    $rabbit_config["nodes"].each do |node|
+      name = node["name"]
       tname = "start_#{name}"
       desc "Start #{name}"
       task tname.to_sym do 
-        ENV['RABBITMQ_NODE_IP_ADDRESS'] = node[:ip] || '127.0.0.1'
-        ENV['RABBITMQ_NODE_PORT']       = node[:port].to_s
+        ENV['RABBITMQ_NODE_IP_ADDRESS'] = node["ip"] || '127.0.0.1'
+        ENV['RABBITMQ_NODE_PORT']       = node["port"].to_s
         ENV['RABBITMQ_NODENAME']        = nodename(node)
-        ENV['RABBITMQ_MNESIA_BASE']     = "#{ENV['HOME']}/tmp/harabbit/#{node[:name]}/mnesia"
-        ENV['RABBITMQ_LOG_BASE']        = "#{ENV['HOME']}/tmp/harabbit/#{node[:name]}/logs"
+        ENV['RABBITMQ_MNESIA_BASE']     = "#{$teporingo_root}/tmp/harabbit/#{node["name"]}/mnesia"
+        ENV['RABBITMQ_LOG_BASE']        = "#{$teporingo_root}/tmp/harabbit/#{node["name"]}/logs"
 
         [ ENV['RABBITMQ_MNESIA_BASE'], ENV['RABBITMQ_LOG_BASE'] ].each do |dir|
           FileUtils.mkdir_p(dir) unless File.exist?(dir)
@@ -49,7 +64,7 @@ namespace :teporingo do
     %w|list_vhosts list_connections list_channels list_users|.each do |cmd|
       desc cmd
       task cmd.to_sym do
-        RABBIT_NODES.each do |node|
+        $rabbit_config["nodes"].each do |node|
           rabbitmqctl node, cmd
         end
       end
@@ -59,7 +74,7 @@ namespace :teporingo do
       desc cmd
       task cmd.to_sym, :vhost do |t,args|
         vhost = args[:vhost] || "/"
-        RABBIT_NODES.each do |node|
+        $rabbit_config["nodes"].each do |node|
           rabbitmqctl node, cmd, '-p', vhost
         end
       end
@@ -71,7 +86,7 @@ namespace :teporingo do
       fields = %w[name durable auto_delete arguments pid owner_pid
       exclusive_consumer_pid exclusive_consumer_tag 
       messages_ready messages_unacknowledged messages consumers memory]
-      RABBIT_NODES.each do |node|
+      $rabbit_config["nodes"].each do |node|
         name = nodename node
         rabbitmqctl node, "list_queues", '-p', vhost, *fields
       end
@@ -82,15 +97,9 @@ namespace :teporingo do
     task :list_bindings, :vhost do |t,args|
       vhost = args[:vhost] || "/"
       fields = %w[source_name source_kind destination_name destination_kind routing_key arguments]
-      RABBIT_NODES.each do |node|
+      $rabbit_config["nodes"].each do |node|
         rabbitmqctl node, "list_bindings", '-p', vhost, *fields
       end
-    end
-
-    desc "run haproxy"
-    task :run_haproxy do
-      cmd = %w|haproxy -V -db -f config/haproxy/haproxy-amqp.conf|
-      system *cmd
     end
   end
 end

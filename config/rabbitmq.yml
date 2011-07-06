@@ -1,0 +1,10 @@
+--- 
+rabbit: 
+  download_url: http://www.rabbitmq.com/releases/rabbitmq-server/v2.5.1/rabbitmq-server-generic-unix-2.5.1.tar.gz
+  nodes: 
+  - name: rabbit01
+    port: 15671
+    host: localhost
+  - name: rabbit02
+    port: 15672
+    host: localhost
