@@ -533,6 +533,7 @@
       2)
      (printf "SUCCESS[%s]: Published to at least 1 broker.\n" ii)
      (catch Exception ex
+       (printf "FAILURE[%s] %s\n" ii ex)
        (log/warnf ex "FAILURE[%s] %s\n" ii ex))))
 
 
