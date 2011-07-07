@@ -194,11 +194,11 @@
       (raise "Error: unrecognized listener type: %s (not one of: :consumer or :return-listener)" listener-type)))  )
 
 (defonce breaker-agent (agent
-                    {:connections []}))
+                        {:connections []}))
 
 (comment
   (agent-error breaker-agent)
- )
+  )
 
 (defn breaker-agent-open-connection [state conn]
   (try
@@ -321,16 +321,16 @@
      (log/infof "inner-fn: calling basicPublish")
      (do
        (let [channel (:channel @conn)]
-        (.basicPublish
-         channel
-         exchange
-         routing-key
-         mandatory
-         immediate
-         props
-         body)
-        (if (:use-transactions conn)
-          (.txCommit channel)))
+         (.basicPublish
+          channel
+          exchange
+          routing-key
+          mandatory
+          immediate
+          props
+          body)
+         (if (:use-transactions conn)
+           (.txCommit channel)))
        {:res true :ex nil}))
    (fn closed-fn? [state]
      (log/infof "checking state to see if its open: %s" @conn)

@@ -1,4 +1,13 @@
+Publishing:
+  - do not use a constant ordering for the brokers to publish to.
+    Eg, for [1,2,3] where publishing to 2 of, use different permutations [1,2] [2,3], [3,2], [2,1], ...
+    This will help with message ordering (when there are 2 brokers) and spread when there are >2 brokers
+
+  - support 2 publishes: 1 that uses redundancy (slower) and one that doesn't
+    for the non-redundant, it can be faster and doesn't need to consult the lock manager
+
 Message De-duplication:
+  - De-dupe should be opt-in: if you're only using 1 broker, there is no point
   - prototype redis connections: use jedis
   - publish to gen UUID and wrap message body
   - consumers strip additional envelope, call into redis to lock UUID
