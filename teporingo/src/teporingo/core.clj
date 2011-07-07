@@ -1,4 +1,4 @@
-(ns rabbit-client.core
+(ns teporingo.core
   (:import
    [java.io IOException]
    [com.rabbitmq.client
@@ -16,7 +16,7 @@
    [com.github.kyleburton.teporingo BreakerOpenException])
   (:require
    [clj-etl-utils.log :as log]
-   [rabbit-client.breaker :as breaker]
+   [teporingo.breaker :as breaker]
    [rn.clorine.pool :as pool]
    [clojure.contrib.json :as json])
   (:use

@@ -1,4 +1,4 @@
-(ns rabbit-client.breaker
+(ns teporingo.breaker
   (:import
    [com.github.kyleburton.teporingo BreakerOpenException])
   (:require
