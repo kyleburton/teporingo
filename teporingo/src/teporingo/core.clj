@@ -39,12 +39,13 @@
     (when (nil? (:channel @conn))
       (let [factory (aprog1
                         (ConnectionFactory.)
-                      (.setConnectionTimeout it (:connection-timeout @conn 0))
-                      (.setUsername          it (:user  @conn "guest"))
-                      (.setPassword          it (:pass  @conn "guest"))
-                      (.setVirtualHost       it (:vhost @conn "/"))
-                      (.setHost              it (:host  @conn "localhost"))
-                      (.setPort              it (:port  @conn 5672)))
+                      (.setConnectionTimeout  it (:connection-timeout @conn 0))
+                      (.setUsername           it (:user  @conn "guest"))
+                      (.setPassword           it (:pass  @conn "guest"))
+                      (.setVirtualHost        it (:vhost @conn "/"))
+                      (.setHost               it (:host  @conn "localhost"))
+                      (.setPort               it (:port  @conn 5672))
+                      (.setRequestedHeartbeat it (:heartbeat-seconds @conn 0)))
             connection (.newConnection factory)
             channel    (.createChannel connection)]
         (when (:use-confirm @conn)
@@ -181,4 +182,13 @@
         (log/errorf msg)))}))
 
 
+(defn delay-by* [ms f]
+  (doto (Thread.
+         (fn thread-wrapper []
+            (Thread/sleep ms)
+            (f)))
+    (.start)))
+
+(defmacro delay-by [ms & body]
+  `(delay-by* ~ms (fn the-delayed [] ~@body)))
 
