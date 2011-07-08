@@ -1,14 +1,7 @@
 (ns teporingo.client
   (:import
    [com.rabbitmq.client
-    ConnectionFactory
-    Connection
-    Channel
     Consumer
-    AlreadyClosedException
-    ReturnListener
-    ConfirmListener
-    MessageProperties
     Envelope
     AMQP$BasicProperties
     ShutdownSignalException])
@@ -19,8 +12,22 @@
    [clj-etl-utils.lang-utils :only [raise]]))
 
 
+;; NB: when we hit clojure 1.3, use ^:dynamic
+(def *conn*         nil)
+(def *consumer*     nil)
+(def *consumer-tag* nil)
+(def *envelope*     nil)
+(def *properties*   nil)
+(def *body*         nil)
+(def *sig*          nil)
+
+(defn ack-message []
+  (.basicAck (:channel        @*conn*)
+             (.getDeliveryTag *envelope*) ;; delivery tag
+             false))
 
 
+;; TODO: throw if they didn't provide a :delivery handler?
 (defn make-consumer [conn handlers]
   (let [default-handler (fn [& args]
                           nil)
@@ -37,57 +44,145 @@
         consumer (reify
                   Consumer
                   (^void handleCancelOk [^Consumer this ^String consumer-tag]
-                         (cancel conn this consumer-tag))
+                         (binding [*conn*         conn
+                                   *consumer*     this
+                                   *consumer-tag* consumer-tag]
+                           (cancel))
+                         (cancel))
                   (^void handleConsumeOk [^Consumer this ^String consumer-tag]
-                         (consume conn this consumer-tag))
+                         (binding [*conn*         conn
+                                   *consumer*     this
+                                   *consumer-tag* consumer-tag]
+                           (consume)))
                   (^void handleDelivery [^Consumer this ^String consumer-tag ^Envelope envelope ^AMQP$BasicProperties properties ^bytes body]
-                         (delivery conn this consumer-tag envelope properties body))
+                         (binding [*conn*         conn
+                                   *consumer*     this
+                                   *consumer-tag* consumer-tag
+                                   *envelope*     envelope
+                                   *properties*   properties
+                                   *body*         body]
+                           (delivery)
+                           (if (:ack? @conn)
+                             (ack-message))))
                   (^void handleShutdownSignal [^Consumer this ^String consumer-tag ^ShutdownSignalException sig]
-                         (shutdown conn this consumer-tag sig))
+                         (binding [*conn*         conn
+                                   *consumer*     this
+                                   *consumer-tag* consumer-tag
+                                   *sig*          sig]
+                           (shutdown)))
                   (^void handleRecoverOk [^Consumer this]
-                         (recover conn this)))]
+                         (binding [*conn*         conn
+                                   *consumer*     this]
+                           (recover))))]
+
     {:conn conn
      :type :consumer
      :listener consumer}))
 
 (defn shutdown-consumer! [consumer]
-  (doseq [listener (:listeners consumer)]
-    (cond
-      (= :consumer (:type listener))
-      (.basicCancel
-       (:channel @(:conn listener))
-       (:consumer-tag @(:conn listener ""))))
-    (close-connection! listener))
+  (try
+   (cond
+     (= :consumer (:type consumer))
+     (.basicCancel
+      (:channel      @(:conn consumer))
+      (:consumer-tag @(:conn consumer) ""))
+     :else
+     (raise "Error: don't know how to shutdown consumer of type=%s, only :consumer is supported." (:type consumer)))
+   (finally
+    (close-connection! (:conn consumer))))
   consumer)
 
 (defn shutdown-consumer-quietly! [consumer]
   (try
    (shutdown-consumer! consumer)
    (catch Exception ex
-     nil))
-  (doseq [listener (:listeners consumer)]
-    (close-connection! (:conn listener)))
+     (log/debugf ex "Error shutting down consumer: %s" ex)))
   consumer)
 
 (defn start-consumer! [consumer]
   (shutdown-consumer-quietly! consumer)
-  (doseq [listener (:listeners consumer)]
-    (let [conn          (:conn listener)
-          channel       (:channel   @conn)
-          exchange-name (:exchange-name  @conn "")
-          queue-name    (:queue-name @conn "")
-          routing-key   (:routing-key @conn *default-routing-key*)
-          listener-type (:type listener)]
-      (ensure-connection! conn)
-      (exchange-declare! conn)
-      (queue-declare!    conn)
-      (queue-bind!       conn)
-      (attach-listener!  conn listener)))
+  (let [conn          (:conn           consumer)]
+    (ensure-connection! conn)
+    (exchange-declare!  conn)
+    (queue-declare!     conn)
+    (queue-bind!        conn)
+    (attach-listener!   conn consumer))
   consumer)
 
-(comment
+(defonce consumer-type-registry (atom {}))
 
-    (def *c1*
+(defn register-consumer [type amqp-credentials handler-functions]
+  (swap! consumer-type-registry
+         assoc
+         type
+         {:type              type
+          :amqp-credentials  amqp-credentials
+          :handler-functions handler-functions}))
+
+(defn lookup-conumer [type]
+  (let [config (type @consumer-type-registry)]
+    (if-not config
+      (raise "Error: unregistered consumer type: %s" type))
+    config))
+
+(defonce active-consumers (atom {}))
+
+(defn add-consumer [type]
+  (let [config        (lookup-conumer type)
+        consumers-vec (type @active-consumers [])
+        conn          (atom (:amqp-credentials  config))
+        consumer      (make-consumer conn (:handler-functions config))]
+    (start-consumer! consumer)
+    (swap! active-consumers
+           assoc
+           type
+           (conj consumers-vec consumer))))
+
+(defn stop-all [type]
+  (dosync
+   (doseq [consumer (type @active-consumers)]
+     (shutdown-consumer-quietly! consumer))
+   (swap! active-consumers
+          assoc
+          type
+          [])))
+
+(defn stop-one [type]
+  (dosync
+   (let [[consumer & rest] (type @active-consumers)]
+     (shutdown-consumer-quietly! consumer)
+     (swap! active-consumers
+            assoc
+            type
+            rest)))
+  (count (type @active-consumers)))
+
+(comment
+  (register-consumer
+   :foof
+   {:port            25672
+    :vhost           "/"
+    :exchange-name   "/foof"
+    :queue-name      "foofq"
+    :ack?            true}
+   {:delivery
+    (fn []
+      (try
+       (log/infof "CONSUMER: got a delivery")
+       (let [msg (String. *body*)]
+         (log/infof "CONSUMER: body='%s'" msg))
+       (catch Exception ex
+         (log/errorf ex "Consumer Error: %s" ex))))})
+
+  (add-consumer :foof)
+  (stop-one :foof)
+  (stop-all :foof)
+
+  consumer-type-registry
+
+  active-consumers
+
+  (def *c1*
        (let [conn (atom {:port 25672
                          :vhost           "/"
                          :exchange-name   "/foof"
@@ -140,4 +235,4 @@
 
 
 
-)
+  )

@@ -139,8 +139,8 @@
 
 
 (defn attach-listener! [conn listener]
-  (let [listener-type (:type listener)
-        channel       (:channel @conn)
+  (let [channel       (:channel  @conn)
+        listener-type (:type     listener)
         listener      (:listener listener)]
     ;;(log/debugf "attaching listener: %s/%s to %s" listener-type listener @conn)
     (cond
@@ -160,11 +160,9 @@
       (= :flow-listener     listener-type)
       (.setFlowListener    channel listener)
       :else
-      (raise "Error: unrecognized listener type: %s (not one of: :consumer or :return-listener)" listener-type)))  )
-
-
-
-
+      (raise "Error: unrecognized listener type: %s (not one of: :consumer or :return-listener) in conn=%s listener=%s" (str listener-type)
+             @conn
+             listener))))
 
 
 (defn make-default-return-listener [conn]
