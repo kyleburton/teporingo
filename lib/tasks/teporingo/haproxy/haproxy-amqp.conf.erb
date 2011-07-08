@@ -6,9 +6,9 @@ global
 
 defaults
   retries <%= $haproxy_config["haproxy"]["config"]["defaults"]["retries"] %>
-  contimeout <%= $haproxy_config["haproxy"]["config"]["defaults"]["contimeout"] %>
-  clitimeout <%= $haproxy_config["haproxy"]["config"]["defaults"]["clitimeout"] %>
-  srvtimeout <%= $haproxy_config["haproxy"]["config"]["defaults"]["srvtimeout"] %>
+  timeout connect <%= $haproxy_config["haproxy"]["config"]["defaults"]["contimeout"] %>
+  timeout client  <%= $haproxy_config["haproxy"]["config"]["defaults"]["clitimeout"] %>
+  timeout server  <%= $haproxy_config["haproxy"]["config"]["defaults"]["srvtimeout"] %>
 
 <% $haproxy_config["haproxy"]["config"]["nodes"].each do |node| %>
 listen <%= node["listen"] %>

@@ -10,8 +10,8 @@ haproxy:
     defaults:
       retries: 3
       contimeout: 5000
-      clitimeout: 50000
-      srvtimeout: 50000
+      clitimeout: 2d
+      srvtimeout: 2d
     nodes: 
     - listen: "amqp01 127.0.0.1:25671"
       mode:    tcp

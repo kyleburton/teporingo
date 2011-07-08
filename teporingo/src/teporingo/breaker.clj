@@ -1,6 +1,9 @@
 (ns teporingo.breaker
   (:import
-   [com.github.kyleburton.teporingo BreakerOpenException])
+   [com.github.kyleburton.teporingo
+    BreakerOpenException
+    BreakerOpenedException
+    BreakerReOpenedException])
   (:require
    [clj-etl-utils.log :as log])
 
@@ -26,7 +29,7 @@
                      assoc
                      :closed? false
                      :current-retries 0)
-              (throw (BreakerOpenException.
+              (throw (BreakerOpenedException.
                       (format "Breaker[%s] Opened by: %s" @state ex)
                       ex))))
            (>= (:current-retries @state)
@@ -45,7 +48,7 @@
                      assoc
                      :closed? false
                      :current-retries 0)
-              (throw (BreakerOpenException.
+              (throw (BreakerReOpenedException.
                       (format "Breaker[%s] Opened during re-attempt by: %s" @state ex)
                       ex))))
            :else
@@ -66,20 +69,20 @@
 
 (comment
 
- (def stuff (basic-breaker
-             (fn [r]
-               (if (= 1 (.nextInt (java.util.Random.) 3))
-                 (raise "sorry, you loose"))
-               r)))
+  (def stuff (basic-breaker
+              (fn [r]
+                (if (= 1 (.nextInt (java.util.Random.) 3))
+                  (raise "sorry, you loose"))
+                r)))
 
- (defbreaker :basic stuff2 [r]
-   (if (= 1 (.nextInt (java.util.Random.) 3))
-     (raise "sorry, you loose"))
-   r)
+  (defbreaker :basic stuff2 [r]
+    (if (= 1 (.nextInt (java.util.Random.) 3))
+      (raise "sorry, you loose"))
+    r)
 
- (stuff2 :a)
+  (stuff2 :a)
 
- )
+  )
 
 
 
@@ -90,20 +93,16 @@
     (fn [& args]
       (cond
         ((:open-fn? @state) state)
-        (do
-          (log/infof "breaker fn indicated breakre is open.")
-         (throw (BreakerOpenException. "Breaker Open")))
+        (throw (BreakerOpenException. "Breaker Open"))
 
         :else
         (try
          (aprog1
-             (apply inner-fn args)
-           (log/infof "inner function success"))
+             (apply inner-fn args))
          (catch Exception ex
-           (log/infof ex "inner function failure, calling breaker open function, then throwing: %s" ex)
            (on-err-fn! state ex)
-           (throw (BreakerOpenException. (format "Breaker Opened, inner fn failed: %s" ex)
-                                         ex))))))))
+           (throw (BreakerOpenedException. (format "Breaker Opened, inner fn failed: %s" ex)
+                                           ex))))))))
 
 
 

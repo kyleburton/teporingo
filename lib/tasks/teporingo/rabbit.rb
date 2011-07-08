@@ -2,25 +2,7 @@ require 'pp'
 require 'yaml'
 
 $rabbit_config = YAML.load_file(File.join($teporingo_root,'config','rabbitmq.yml'))["rabbit"]
-
 #pp $rabbit_config
-
-def nodename node
-  "#{node["name"]}@#{node["host"]}"
-end
-
-def rabbitmqctl node, action, *fields
-  name = nodename node
-  cmd = "rabbitmqctl", "-q", "-n", name, action, *fields
-  puts cmd.join(" ")
-  if fields.first == '-p'
-    fields.shift
-    fields.shift
-  end
-  puts fields.join("\t") unless fields.nil?
-  system *cmd
-  puts ""
-end
 
 def rabbit_url
   $rabbit_config["download_url"]
@@ -36,6 +18,28 @@ end
 
 def rabbit_dir
   "rabbitmq_server-#{rabbit_ver}"
+end
+
+
+def nodename node
+  "#{node["name"]}@#{node["host"]}"
+end
+
+$rabbit_root = File.expand_path "#{$teporingo_root}/rabbitmq-server/#{rabbit_dir}"
+
+def rabbitmqctl node, action, *fields
+  name = nodename node
+  cmd = "#{$rabbit_root}/sbin/rabbitmqctl", "-q", "-n", name, action, *fields
+  puts "# #{cmd.join(" ")}".grey
+  if fields.first == '-p'
+    fields.shift
+    fields.shift
+  end
+  puts fields.join("\t").dark_green unless fields.nil?
+  res = `#{cmd.join(" ")} 2>&1`
+  #system *cmd
+  puts res.green
+  puts ""
 end
 
 
