@@ -30,7 +30,7 @@ $rabbit_root = File.expand_path "#{$teporingo_root}/rabbitmq-server/#{rabbit_dir
 def rabbitmqctl node, action, *fields
   name = nodename node
   cmd = "#{$rabbit_root}/sbin/rabbitmqctl", "-q", "-n", name, action, *fields
-  puts "# #{cmd.join(" ")}".grey
+  puts "# #{cmd.join(" ")}".light_grey
   if fields.first == '-p'
     fields.shift
     fields.shift

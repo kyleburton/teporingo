@@ -28,6 +28,7 @@
 
 (defonce consumer-restart-agent (agent {}))
 (declare start-consumer!)
+(defonce active-consumers (atom {}))
 
 ;; TODO: throw if they didn't provide a :delivery handler?
 (defn make-consumer [type conn handlers]
@@ -115,8 +116,6 @@
      (log/debugf ex "[IGNORE] Error shutting down consumer: %s" ex)))
   consumer)
 
-(defonce active-consumers (atom {}))
-
 (declare stop-consumer-with-tag)
 
 (def *retry-time* 250)
@@ -148,10 +147,12 @@
 
 (defn start-consumer!
   ([consumer]
-     (send-off consumer-restart-agent agent-start-consumer! consumer)
+     (if-not (:all-stop @(:conn consumer))
+       (send-off consumer-restart-agent agent-start-consumer! consumer))
      consumer)
   ([consumer consumer-tag]
-     (send-off consumer-restart-agent agent-start-consumer! consumer consumer-tag)
+     (if-not (:all-stop @(:conn consumer))
+       (send-off consumer-restart-agent agent-start-consumer! consumer consumer-tag))
      consumer))
 
 (defonce consumer-type-registry (atom {}))
@@ -181,9 +182,8 @@
   (log/infof "stop-consumer-with-tag type=%s consumer-tag=%s" type consumer-tag)
   (dosync
    (let [consumer (get-in @active-consumers [type consumer-tag])]
-     (log/infof "consumer=%s" consumer)
-     (.println System/err (format "consumer=%s" consumer))
-     (swap! (:conn consumer) assoc :restart-on-connection-closed? false)
+     (log/infof "start-consumer-wtih-tag: consumer=%s" consumer)
+     (swap! (:conn consumer) assoc :all-stop true)
      (shutdown-consumer-quietly! consumer)
      (swap! active-consumers
             update-in

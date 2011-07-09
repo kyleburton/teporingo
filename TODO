@@ -1,3 +1,7 @@
+- need to have coordination between the agent and the breaker
+ - model using a blocking-queue so the breaker knows when
+ - the connection is ready to use
+
 Publishing:
   - do not use a constant ordering for the brokers to publish to.
     Eg, for [1,2,3] where publishing to 2 of, use different permutations [1,2] [2,3], [3,2], [2,1], ...

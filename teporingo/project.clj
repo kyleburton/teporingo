@@ -1,6 +1,6 @@
 (defproject 
   rabbit-client "1.0.0-SNAPSHOT"
-  :description "FIXME: write description"
+  :description "HA Rabbit Client Library"
   :dev-dependencies [[swank-clojure "1.4.0-SNAPSHOT"]]
   :dev-resources-path "dev-resources"
   :local-repo-classpath true
