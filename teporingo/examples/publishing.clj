@@ -66,7 +66,7 @@
     (def *publisher* (pub/make-publisher :local-rabbit-cluster)))
 
   (time
-   (dotimes [ii 5000]
+   (dotimes [ii 100000]
      (try
       (pub/publish
        *publisher*

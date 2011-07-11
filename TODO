@@ -1,17 +1,3 @@
-- move 250ms publisher retry delay into configuration
-- do same for other delays, defaults and all other parameters - put into 1 var that can be overridden
-- need to have coordination between the agent and the breaker
- - model using a blocking-queue so the breaker knows when
- - the connection is ready to use
-
-Publishing:
-  - do not use a constant ordering for the brokers to publish to.
-    Eg, for [1,2,3] where publishing to 2 of, use different permutations [1,2] [2,3], [3,2], [2,1], ...
-    This will help with message ordering (when there are 2 brokers) and spread when there are >2 brokers
-
-  - support 2 publishes: 1 that uses redundancy (slower) and one that doesn't
-    for the non-redundant, it can be faster and doesn't need to consult the lock manager
-
 Message De-duplication:
   - De-dupe should be opt-in: if you're only using 1 broker, there is no point
   - prototype redis connections: use jedis
@@ -25,9 +11,20 @@ De-dupe Key Store / Lock Manager
   - purge keys
   - consumers route to dead letter queue / table if/when message being processed has
     an age of M[a] >= 0.9 * K[a]
-    
 
+Publishing:
+  - do not use a constant ordering for the brokers to publish to.
+    Eg, for [1,2,3] where publishing to 2 of, use different permutations [1,2] [2,3], [3,2], [2,1], ...
+    This will help with message ordering (when there are 2 brokers) and spread when there are >2 brokers
+  - support N/M publishing constraints: eg: "at least 2(N) of 5(M) brokers"
+  - support 2 types of publish calls: 1 that uses redundancy (slower) and one that doesn't
+    for the non-redundant, it can be faster and doesn't need to consult the lock manager
+  - move 250ms publisher retry delay into configuration
+  - do same for other delays, defaults and all other parameters - put into 1 var that can be overridden
 
 Configuration:
 - allow teporingo (Clojure rabbit client) publisher configuration to be pulled from config/teporingo.yml
 
+AMQP Utilities
+- functions for clearing out: vhsots, exchanges, queues and bindings
+- functions for creating users, removing users, setting permissions?

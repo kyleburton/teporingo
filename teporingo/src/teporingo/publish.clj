@@ -11,7 +11,7 @@
     ShutdownSignalException]
    [java.io IOException]
    ;; [java.util.concurrent ArrayBlockingQueue]
-   [com.github.kyleburton.teporingo BreakerOpenException])
+   [com.github.kyleburton.teporingo BreakerOpenException MaxPublishRetriesExceededException])
   (:require
    [clj-etl-utils.log :as log]
    [teporingo.breaker :as breaker])
@@ -154,7 +154,7 @@
     (doseq [err errors]
       (if err
         (log/errorf err "Max retries due to: %s" err)))
-    (raise (RuntimeException. "Error: exceeded max retries for publish." (first errors))))
+    (raise (MaxPublishRetriesExceededException. "Error: exceeded max retries for publish." (first errors) errors)))
   ;; try publishing to all brokers, ensure we publish to at least the min required
   (let [num-published             (atom 0)
         min-brokers-published-to  (:min-brokers-published-to publisher 1)

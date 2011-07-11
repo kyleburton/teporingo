@@ -52,6 +52,8 @@
 
   active-consumers
 
+  (clojure.contrib.pprint/pprint @active-consumers)
+
   (let [ex (agent-error consumer-restart-agent)]
     (log/infof ex "Error: %s" ex))
 
