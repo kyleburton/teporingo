@@ -59,7 +59,8 @@
              immediate
              props
              body)
-            (if (:use-transactions conn)
+            (when (:use-transactions conn)
+              (log/infof "calling .txCommit on channel")
               (.txCommit channel))
             {:res true :ex nil})
           {:res false :ex nil}))
@@ -134,7 +135,8 @@
           immediate
           props
           body)
-         (if (:use-transactions conn)
+         (when (:use-transactions conn)
+           (log/infof "calling .txCommit on channel")
            (.txCommit channel)))
        {:res true :ex nil}))
    (fn closed-fn? [state]

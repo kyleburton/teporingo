@@ -104,8 +104,10 @@
             connection (.newConnection factory)
             channel    (.createChannel connection)]
         (when (:use-confirm @conn)
+          (log/infof "setting .confirmSelect on connection")
           (.confirmSelect channel))
         (when (:use-transactions @conn)
+          (log/infof "setting .txSelect on connection")
           (.txSelect channel))
         (swap! conn assoc
                :factory factory

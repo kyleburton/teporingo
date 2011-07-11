@@ -35,7 +35,7 @@
 (def *amqp-config*
      {:name               "*none*"
       :port               5672
-      :use-confirm        true
+      ;; :use-confirm        true
       :connection-timeout 10
       :queue-name         "foofq"
       :vhost              "/"
@@ -43,8 +43,9 @@
       :bindings           [{:routing-key        ""}]
       :closed?            true
       :listeners          {:return  handle-returned-message
-                           :confirm handle-confirmed-message
-                           :flow    handle-flow}})
+                           ;; :confirm handle-confirmed-message
+                           ;; :flow    handle-flow
+                           }})
 
 
 (pub/register-amqp-broker-cluster
@@ -64,21 +65,22 @@
     (mq/close-connection! *publisher*)
     (def *publisher* (pub/make-publisher :local-rabbit-cluster)))
 
-  (dotimes [ii 1]
-    (try
-     (pub/publish
-      *publisher*
-      "/foof"
-      ""
-      true         ;; mandatory
-      false        ;; immediate
-      MessageProperties/PERSISTENT_TEXT_PLAIN
-      (.getBytes (str "hello there:" ii))
-      2)
-     (printf "SUCCESS[%s]: Published to at least 1 broker.\n" ii)
-     (catch Exception ex
-       (printf "FAILURE[%s] %s\n" ii ex)
-       (log/warnf ex "FAILURE[%s] %s\n" ii ex))))
+  (time
+   (dotimes [ii 5000]
+     (try
+      (pub/publish
+       *publisher*
+       "/foof"
+       ""
+       true  ;; mandatory
+       false ;; immediate
+       MessageProperties/PERSISTENT_TEXT_PLAIN
+       (.getBytes (str "hello there:" ii))
+       2)
+      (printf "SUCCESS[%s]: Published to at least 1 broker.\n" ii)
+      (catch Exception ex
+        (printf "FAILURE[%s] %s\n" ii ex)
+        (log/warnf ex "FAILURE[%s] %s\n" ii ex)))))
 
   )
 
