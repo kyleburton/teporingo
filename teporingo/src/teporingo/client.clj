@@ -11,6 +11,16 @@
    teporingo.core
    [clj-etl-utils.lang-utils :only [raise]]))
 
+(defonce *disabled-consumers-by-type* (atom {}))
+
+(defn disable-consumer-type [type]
+  (swap! *disabled-consumers-by-type* assoc type true))
+
+(defn enable-consumer-type [type]
+  (swap! *disabled-consumers-by-type* dissoc type))
+
+(defn consumer-type-enabled? [type]
+  (not (get @*disabled-consumers-by-type* type false)))
 
 (defn ack-message []
   (.basicAck (:channel        @*conn*)
@@ -91,9 +101,9 @@
    (cond
      (= :consumer (:type consumer))
      (when (:channel @(:conn consumer))
-      (.basicCancel
-       (:channel      @(:conn consumer))
-       (:consumer-tag @(:conn consumer) "")))
+       (.basicCancel
+        (:channel      @(:conn consumer))
+        (:consumer-tag @(:conn consumer) "")))
      :else
      (raise "Error: don't know how to shutdown consumer of type=%s, only :consumer is supported. in %s" (:type consumer) consumer))
    (finally
@@ -125,23 +135,33 @@
       (catch Exception ex
         (let [conn               (:conn           consumer)
               reconnect-delay-ms (:reconnect-delay-ms @conn 250)]
-         (log/infof ex "agent-start-consumer! error during connect: %s, will re-attempt in %sms" ex reconnect-delay-ms)
-         (delay-by
-             reconnect-delay-ms
-           (send-off consumer-restart-agent agent-start-consumer! consumer)))))
+          (log/infof ex "agent-start-consumer! error during connect: %s, will re-attempt in %sms" ex reconnect-delay-ms)
+          (delay-by
+              reconnect-delay-ms
+            (start-consumer! consumer)))))
      state)
   ([state consumer consumer-tag]
      (log/debugf "agent-start-consumer! type:%s tag:%s" (:registered-type consumer) consumer-tag)
      (stop-consumer-with-tag (:registered-type consumer) consumer-tag)
-     (agent-start-consumer! state consumer)))
+     (start-consumer! consumer)
+     state))
 
 (defn start-consumer!
   ([consumer]
-     (if-not (:all-stop @(:conn consumer))
-       (send-off consumer-restart-agent agent-start-consumer! consumer))
+     (log/infof "consumer: %s" consumer)
+     (if (and
+          (consumer-type-enabled? (:registered-type consumer))
+          (not (:all-stop @(:conn consumer))))
+       (send-off consumer-restart-agent agent-start-consumer! consumer)
+       (log/infof "NOT starting consumer[%s]: consumer-type-enabled?:%s %s"
+                  (:registered-type consumer)
+                  (consumer-type-enabled? (:registered-type consumer))
+                  consumer))
      consumer)
   ([consumer consumer-tag]
-     (if-not (:all-stop @(:conn consumer))
+     (if (and
+          (consumer-type-enabled? (:registered-type consumer))
+          (not (:all-stop @(:conn consumer))))
        (send-off consumer-restart-agent agent-start-consumer! consumer consumer-tag))
      consumer))
 
@@ -173,25 +193,30 @@
         consumer      (make-consumer type conn (:handler-functions config))]
     (start-consumer! consumer)))
 
-(defn stop-consumer-with-tag [type consumer-tag]
-  (log/infof "stop-consumer-with-tag type=%s consumer-tag=%s" type consumer-tag)
-  (dosync
-   (let [consumer (get-in @active-consumers [type consumer-tag])]
-     (log/infof "start-consumer-wtih-tag: consumer=%s" consumer)
-     (swap! (:conn consumer) assoc :all-stop true)
-     (shutdown-consumer-quietly! consumer)
-     (swap! active-consumers
-            update-in
-            [type]
-            dissoc
-            consumer-tag))))
+(defn stop-consumer-with-tag
+  ([type consumer-tag]
+     (log/infof "stop-consumer-with-tag type=%s consumer-tag=%s" type consumer-tag)
+     (dosync
+      (let [consumer (get-in @active-consumers [type consumer-tag])]
+        (log/infof "start-consumer-wtih-tag: consumer=%s" consumer)
+        (shutdown-consumer-quietly! consumer)
+        (swap! active-consumers
+               update-in
+               [type]
+               dissoc
+               consumer-tag))))
+  ([type consumer-tag all-stop]
+     (dosync
+      (let [consumer (get-in @active-consumers [type consumer-tag])]
+        (swap! (:conn consumer) assoc :all-stop all-stop)))
+     (stop-consumer-with-tag type consumer-tag)))
 
 (defn stop-one [type]
   (dosync
    (let [consumers (type @active-consumers)
          tag1      (ffirst consumers)]
      (if-not (nil? tag1)
-      (stop-consumer-with-tag type tag1))))
+       (stop-consumer-with-tag type tag1 true))))
   (count (type @active-consumers)))
 
 (defn stop-all

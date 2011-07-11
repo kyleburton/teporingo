@@ -13,6 +13,7 @@
       :queue-name                    "foofq"
       :heartbeat-seconds             5
       :restart-on-connection-closed? true
+      :reconnect-delay-ms            1000
       :ack?                          true})
 
 (def *amqp02-config*
@@ -46,6 +47,11 @@
   (stop-all :foof01)
   (stop-all :foof02)
   (stop-all)
+
+  (consumer-type-enabled? :foof01)
+  (consumer-type-enabled? :foof02)
+  (disable-consumer-type :foof01)
+  (enable-consumer-type  :foof01)
 
 
   consumer-type-registry
