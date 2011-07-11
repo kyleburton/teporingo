@@ -3,7 +3,7 @@
    [clj-etl-utils.log :as log])
   (:use
    teporingo.client
-   [teporingo.core           :only [*body*]]
+   [teporingo.core           :only [*body* *consumer-tag* *envelope*]]
    [clj-etl-utils.lang-utils :only [raise]]))
 
 (def *amqp01-config*
@@ -24,7 +24,7 @@
   (try
    (log/infof "CONSUMER: got a delivery")
    (let [msg (String. *body*)]
-     (log/infof "CONSUMER: body='%s'" msg))
+     (log/infof "CONSUMER: [%s/%s|%s] body='%s'" *consumer-tag* (.getRoutingKey *envelope*) (.getDeliveryTag *envelope*) msg))
    (catch Exception ex
      (log/errorf ex "Consumer Error: %s" ex))))
 
