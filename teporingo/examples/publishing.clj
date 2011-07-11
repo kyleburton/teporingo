@@ -38,10 +38,9 @@
       :use-confirm        true
       :connection-timeout 10
       :queue-name         "foofq"
-      :routing-key        "foo.#"
-      ;; :routing-key        ""
       :vhost              "/"
       :exchange-name      "/foof"
+      :bindings           [{:routing-key        ""}]
       :closed?            true
       :listeners          {:return  handle-returned-message
                            :confirm handle-confirmed-message
@@ -70,7 +69,7 @@
      (pub/publish
       *publisher*
       "/foof"
-      "asf"
+      ""
       true         ;; mandatory
       false        ;; immediate
       MessageProperties/PERSISTENT_TEXT_PLAIN
@@ -79,7 +78,7 @@
      (printf "SUCCESS[%s]: Published to at least 1 broker.\n" ii)
      (catch Exception ex
        (printf "FAILURE[%s] %s\n" ii ex)
-       (log/warnf ex "FAILURE[%s] %s\n" ii ex)))){
+       (log/warnf ex "FAILURE[%s] %s\n" ii ex))))
 
   )
 

@@ -159,23 +159,24 @@
      (:queue-autodelete @conn (if-not (nil? autodelete) autodelete false))
      (:queue-arguments  @conn (or arguments {})))))
 
-(defn queue-bind! [conn & [queue-name exchange-name routing-key]]
+(defn queue-bind! [conn]
   (if (contains? @conn :connections)
     (doseq [conn (:connections @conn)]
-      (queue-bind! conn queue-name exchange-name routing-key))
-    (let [queue-name    (:queue-name       @conn (or queue-name    ""))
-          exchange-name (:exchange-name    @conn (or exchange-name ""))
-          routing-key   (:routing-key      @conn (or routing-key   *default-routing-key*))]
-     (log/infof "binding conn:%s queue-name:%s exchange-name:%s routing-key:%s"
-                @conn
-                queue-name
-                exchange-name
-                routing-key)
-     (.queueBind
-      (:channel          @conn)
-      queue-name
-      exchange-name
-      routing-key))))
+      (queue-bind! conn))
+    (doseq [binding (:bindings @conn)]
+      (let [queue-name    (:queue-name       binding (:queue-name    @conn))
+            exchange-name (:exchange-name    binding (:exchange-name @conn))
+            routing-key   (:routing-key      binding (:routing-key   @conn ""))]
+        (log/infof "binding conn:%s queue-name:%s exchange-name:%s routing-key:%s"
+                   @conn
+                   queue-name
+                   exchange-name
+                   routing-key)
+        (.queueBind
+         (:channel          @conn)
+         queue-name
+         exchange-name
+         routing-key)))))
 
 (defn make-return-listener [conn handle-return-fn]
   (log/infof "make-return-listener: conn=%s" conn)
