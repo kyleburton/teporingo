@@ -9,6 +9,7 @@
     AlreadyClosedException
     ReturnListener
     ConfirmListener
+    FlowListener
     MessageProperties
     Envelope
     AMQP$BasicProperties
@@ -45,7 +46,46 @@
 (def *reply-text*   nil)
 (def *exchange*     nil)
 (def *routing-key*  nil)
+(def *props*        nil)
 (def *message-properties* nil)
+(def *confirm-type* nil)
+(def *delivery-tag* nil)
+(def *multiple*     nil)
+(def *active*       nil)
+
+(declare make-return-listener)
+(declare make-confirm-listener)
+(declare make-flow-listener)
+
+(defn attach-listener! [conn listener]
+  (let [channel       (:channel  @conn)
+        listener-type (:type     listener)
+        listener      (:listener listener)]
+    (log/infof "attach-listener! attaching[%s] %s to %s"
+               listener-type listener @conn)
+    (cond
+      (= :consumer listener-type)
+      (do
+        (.basicConsume channel
+                       (:queue-name   @conn)
+                       (:auto-ack     @conn false)
+                       (:consumer-tag @conn "")
+                       listener))
+      (= :return listener-type)
+      (.setReturnListener channel  (:listener (make-return-listener conn listener)))
+      (= :confirm listener-type)
+      (.setConfirmListener channel (:listener (make-confirm-listener conn listener)))
+      ;; NB: allowing a default consumer is questionable IMO
+      ;; if we do that, we should wrap this in a (make-default-consumer-listner listener) as we do with the other listener types
+      ;; (= :default-consumer listener-type)
+      ;; (.setDefaultConsumer channel listener)
+      (= :flow listener-type)
+      (.setFlowListener    channel (:listener (make-flow-listener conn listener)))
+      :else
+      (raise "Error: unrecognized listener type: %s (not one of: :consumer or :return-listener) in conn=%s listener=%s" (str listener-type)
+             @conn
+             listener))))
+
 
 (defn ensure-connection! [conn]
   (if (contains? conn :connections)
@@ -70,8 +110,12 @@
         (swap! conn assoc
                :factory factory
                :connection connection
-               :channel    channel))))
+               :channel    channel)
+        (doseq [listener-type [:flow :return :confirm]]
+          (if-let [listener (listener-type (:listeners @conn))]
+            (attach-listener! conn {:type listener-type :listener listener}))))))
   conn)
+
 
 
 (defn close-quietly [thing]
@@ -119,97 +163,88 @@
   (if (contains? @conn :connections)
     (doseq [conn (:connections @conn)]
       (queue-bind! conn queue-name exchange-name routing-key))
-    (.queueBind
-     (:channel          @conn)
-     (:queue-name       @conn (or queue-name    ""))
-     (:exchange-name    @conn (or exchange-name ""))
-     (:routing-key      @conn (or routing-key   *default-routing-key*)))))
+    (let [queue-name    (:queue-name       @conn (or queue-name    ""))
+          exchange-name (:exchange-name    @conn (or exchange-name ""))
+          routing-key   (:routing-key      @conn (or routing-key   *default-routing-key*))]
+     (log/infof "binding conn:%s queue-name:%s exchange-name:%s routing-key:%s"
+                @conn
+                queue-name
+                exchange-name
+                routing-key)
+     (.queueBind
+      (:channel          @conn)
+      queue-name
+      exchange-name
+      routing-key))))
 
-(defn make-return-listener [conn handlers]
-  (let [handle-return-fn (:handle-return handlers)
-        return-listener
-        (proxy
-            [ReturnListener]
-            []
-          (handleReturn [this reply-code reply-text exchange routing-key props body]
-                        (binding [*reply-code*         reply-code
-                                  *reply-text*         reply-text
-                                  *exchange*           exchange
-                                  *routing-key*        routing-key
-                                  *message-properties* props
-                                  *listener*           this
-                                  *conn*               conn
-                                  *body*               body])
-                        (handle-return-fn)))]
-    {:conn     conn
-     :type     :return-listener
-     :listener return-listener}))
-
-
-(defn make-confirm-listener [conn handlers]
-  (let [ack-fn  (:handle-ack handlers)
-        nack-fn (:handle-nack handlers)
-        confirm-listener
-        (proxy
-            [ConfirmListener]
-            []
-          (handleAck [delivery-tag multiple]
-                     (ack-fn conn this delivery-tag multiple))
-          (handleNack [delivery-tag multiple]
-                      (nack-fn conn this delivery-tag multiple)))]
-    {:conn     conn
-     :type     :confirm-listener
-     :listener confirm-listener}))
+(defn make-return-listener [conn handle-return-fn]
+  (log/infof "make-return-listener: conn=%s" conn)
+  (def *foo* conn)
+  {:conn     conn
+   :type     :return-listener
+   :listener
+   (proxy
+       [ReturnListener]
+       []
+     (handleReturn
+      [reply-code reply-text exchange routing-key props body]
+      (binding [*reply-code*         reply-code
+                *reply-text*         reply-text
+                *exchange*           exchange
+                *routing-key*        routing-key
+                *message-properties* props
+                *listener*           this
+                *conn*               conn
+                *props*              props
+                *body*               body]
+        (handle-return-fn))))})
 
 
-(defn attach-listener! [conn listener]
-  (let [channel       (:channel  @conn)
-        listener-type (:type     listener)
-        listener      (:listener listener)]
-    ;;(log/debugf "attaching listener: %s/%s to %s" listener-type listener @conn)
-    (cond
-      (= :consumer listener-type)
-      (do
-        (.basicConsume channel
-                       (:queue-name   @conn)
-                       (:auto-ack     @conn false)
-                       (:consumer-tag @conn "")
-                       listener))
-      (= :return-listener listener-type)
-      (.setReturnListener channel  listener)
-      (= :confirm-listener listener-type)
-      (.setConfirmListener channel listener)
-      (= :default-consumer listener-type)
-      (.setDefaultConsumer channel listener)
-      (= :flow-listener     listener-type)
-      (.setFlowListener    channel listener)
-      :else
-      (raise "Error: unrecognized listener type: %s (not one of: :consumer or :return-listener) in conn=%s listener=%s" (str listener-type)
-             @conn
-             listener))))
+(defn make-confirm-listener [conn handler-fn]
+  {:conn     conn
+   :type     :confirm-listener
+   :listener
+   (proxy
+       [ConfirmListener]
+       []
+     (handleAck
+      [delivery-tag multiple]
+      (binding [*confirm-type* :ack
+                *conn*         conn
+                *listener*     this
+                *delivery-tag* delivery-tag
+                *multiple*     multiple]
+        (handler-fn)))
+     (handleNack
+      [delivery-tag multiple]
+      (binding [*confirm-type* :nack
+                *conn*         conn
+                *listener*     this
+                *delivery-tag* delivery-tag
+                *multiple*     multiple]
+        (handler-fn))))})
 
+(defn make-flow-listener [conn handler-fn]
+  {:conn     conn
+   :type     :flow-listener
+   :listener
+   (proxy
+       [FlowListener]
+       []
+     (handleFlow
+      [active]
+      (binding [*conn*         conn
+                *listener*     this
+                *active*       active]
+        (handler-fn))))})
 
-(defn make-default-return-listener [conn]
-  (make-return-listener
-   conn
-   {:handle-return
-    (fn [conn listener reply-code reply-text exchange routing-key props body]
-      (let [msg (format "RETURNED: conn=%s code=%s text=%s exchange=%s routing-key:%s props=%s body=%s"
-                        @conn
-                        reply-code
-                        reply-text
-                        exchange
-                        routing-key
-                        props
-                        (String. body))]
-        (log/errorf msg)))}))
 
 
 (defn delay-by* [ms f]
   (doto (Thread.
          (fn thread-wrapper []
-            (Thread/sleep ms)
-            (f)))
+           (Thread/sleep ms)
+           (f)))
     (.start)))
 
 (defmacro delay-by [ms & body]

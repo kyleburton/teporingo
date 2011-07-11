@@ -40,31 +40,6 @@
              assoc
              :message-acks
              (java.util.concurrent.ConcurrentHashMap.))
-      (attach-listener!
-       conn
-       (make-return-listener
-        conn
-        {:handle-return
-         (fn [conn listener reply-code reply-text exchange routing-key props body]
-           (let [msg (format "RETURNED: conn=%s code=%s text=%s exchange=%s routing-key:%s props=%s body=%s"
-                             @conn
-                             reply-code
-                             reply-text
-                             exchange
-                             routing-key
-                             props
-                             (String. body))]
-             (log/errorf msg)))}))
-      (attach-listener!
-       conn
-       (make-confirm-listener
-        conn
-        {:handle-ack
-         (fn [conn listener delivery-tag multiple]
-           (log/warnf "handle-ack: %s %s %s" @conn delivery-tag multiple))
-         :handle-nack
-         (fn [conn listener delivery-tag multiple]
-           (log/warnf "handle-nack: %s %s %s" @conn delivery-tag multiple))}))
       {:res true :ex nil}))
   conn)
 
@@ -126,8 +101,11 @@
 
 (defn breaker-agent-open-connection [state conn]
   (try
-   (close-connection! conn)
+   (close-connection!  conn)
    (ensure-connection! conn)
+   (exchange-declare!  conn)
+   (queue-declare!     conn)
+   (queue-bind!        conn)
    (swap! conn assoc :closed? false)
    #_(.offer (:connection-statusq @conn) :ok)
    (catch Exception ex
@@ -182,6 +160,7 @@
         mandatory                 (if-not (nil? mandatory) mandatory true)
         immediate                 (if-not (nil? immediate) immediate true)
         message-props             (or props MessageProperties/PERSISTENT_TEXT_PLAIN)]
+    (log/infof "publish: mandatory:%s immediate:%s" mandatory immediate)
     (doseq [conn (:connections publisher)]
       (let [res (publish-1 conn exchange routing-key mandatory immediate props body)]
         (if (:res res)

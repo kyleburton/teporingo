@@ -7,69 +7,79 @@
    [teporingo.core    :as mq]
    [clj-etl-utils.log :as log])
   (:use
+   [teporingo.core           :only [*reply-code* *reply-text* *exchange* *routing-key* *message-properties* *listener* *conn* *props* *body* *active* *confirm-type* *delivery-tag* *multiple*]]
    [clj-etl-utils.lang-utils :only [raise]]))
 
 
 
+(defn handle-returned-message []
+  (log/errorf
+   "[publisher] RETURNED: conn=%s code=%s text=%s exchange=%s routing-key:%s props=%s body=%s"
+   @*conn*
+   *reply-code*
+   *reply-text*
+   *exchange*
+   *routing-key*
+   *props*
+   (String. *body*)))
+
+(defn handle-confirmed-message []
+  (log/infof "[publisher] confirmed message: confirm-type:%s delivery-tag:%s multiple:%s"
+             *confirm-type*
+             *delivery-tag*
+             *multiple*))
+
+(defn handle-flow []
+  (log/infof "[publisher] flow: activity:%s" *active*))
+
+(def *amqp-config*
+     {:name               "*none*"
+      :port               5672
+      :use-confirm        true
+      :connection-timeout 10
+      :queue-name         "foofq"
+      :routing-key        "foo.#"
+      ;; :routing-key        ""
+      :vhost              "/"
+      :exchange-name      "/foof"
+      :closed?            true
+      :listeners          {:return  handle-returned-message
+                           :confirm handle-confirmed-message
+                           :flow    handle-flow}})
+
 
 (pub/register-amqp-broker-cluster
  :local-rabbit-cluster
- [{:name "rabbit01"
-   :port 25671
-   :use-confirm true
-   :connection-timeout 10
-   :queue-name "foofq"
-   :routing-key ""
-   :vhost "/"
-   :exchange-name "/foof"
-   :closed? true}
-  {:name "rabbit02"
-   :port 25672
-   :connecton-timeout 10
-   :use-confirm true
-   :queue-name "foofq"
-   :routing-key "#"
-   :vhost "/"
-   :exchange-name "/foof"
-   :closed? true}])
+ [(assoc *amqp-config*
+    :name "rabbit01"
+    :port 25671)
+  (assoc *amqp-config*
+    :name "rabbit02"
+    :port 25672)])
 
-(def *publisher* (pub/make-publisher :local-rabbit-cluster))
 
-(doseq [conn (:connections *publisher*)]
-  (mq/attach-listener! conn
-                       (mq/make-return-listener
-                        conn
-                        {:handle-return
-                         (fn []
-                           (let [msg (format "RETURNED: conn=%s code=%s text=%s exchange=%s routing-key:%s props=%s body=%s"
-                                             @*conn*
-                                             ;; TODO/HERE/NB complete conversion to bindings...
-                                             reply-code
-                                             reply-text
-                                             exchange
-                                             routing-key
-                                             props
-                                             (String. body))]
-                             (log/errorf msg)))})))
+(defonce *publisher* (pub/make-publisher :local-rabbit-cluster))
 
 (comment
-  (mq/close-connection! *publisher*)
+  (do
+    (mq/close-connection! *publisher*)
+    (def *publisher* (pub/make-publisher :local-rabbit-cluster)))
 
   (dotimes [ii 1]
     (try
      (pub/publish
       *publisher*
       "/foof"
-      ""
-      true
-      false
+      "asf"
+      true         ;; mandatory
+      false        ;; immediate
       MessageProperties/PERSISTENT_TEXT_PLAIN
       (.getBytes (str "hello there:" ii))
       2)
      (printf "SUCCESS[%s]: Published to at least 1 broker.\n" ii)
      (catch Exception ex
        (printf "FAILURE[%s] %s\n" ii ex)
-       (log/warnf ex "FAILURE[%s] %s\n" ii ex))))
+       (log/warnf ex "FAILURE[%s] %s\n" ii ex)))){
 
   )
 
