@@ -21,6 +21,17 @@
 
 (defonce *broker-registry* (atom {}))
 
+(defonce *disabled-brokers* (atom #{}))
+
+(defn disable-broker [registered-name]
+  (swap! *disabled-brokers* conj registered-name))
+
+(defn enable-broker [registered-name]
+  (swap! *disabled-brokers* disj registered-name))
+
+(defn broker-enabled? [registered-name]
+  (not (contains? @*disabled-brokers* registered-name)))
+
 (defn register-amqp-broker-cluster [name config]
   (swap! *broker-registry* assoc name config))
 
@@ -110,14 +121,15 @@
    (swap! conn assoc :closed? false)
    #_(.offer (:connection-statusq @conn) :ok)
    (catch Exception ex
-     (log/warnf ex "Error re-establishing connection, will retry: %s %s" ex @conn)
-     (.start
-      (Thread.
-       ;; TODO: make this a daemon thread, and allow the infinite restart loop to be stopped / broken out of...
-       (fn []
-         (Thread/sleep (:reconnect-delay-ms @conn 250))
-         (log/warnf "Delayed reconnect, re-sending off after error connecting previous time...")
-         (send-off breaker-agent breaker-agent-open-connection conn))))))
+     (when (broker-enabled? (:registered-name @conn))
+       (log/warnf ex "Error re-establishing connection, will retry: %s %s" ex @conn)
+       (.start
+        (Thread.
+         ;; TODO: make this a daemon thread, and allow the infinite restart loop to be stopped / broken out of...
+         (fn []
+           (Thread/sleep (:reconnect-delay-ms @conn 250))
+           (log/warnf "Delayed reconnect, re-sending off after error connecting previous time...")
+           (send-off breaker-agent breaker-agent-open-connection conn)))))))
   state)
 
 (defn make-pub-agent-breaker [conn]
@@ -174,8 +186,8 @@
         (publish publisher exchange routing-key mandatory immediate props body (dec retries) (concat errors @pub-errs)))
       (log/debugf "looks like we published to %s brokers.\n" @num-published))))
 
-(defn make-publisher [name]
-  (let [config    (get @*broker-registry* name)
+(defn make-publisher [registered-name]
+  (let [config    (get @*broker-registry* registered-name)
         publisher {:connections (vec (map (fn [m] (atom m)) config))}]
     (doseq [conn (:connections publisher)]
       #_(swap! conn
@@ -185,7 +197,8 @@
              assoc
              :errors []
              :publish
-             (make-pub-agent-breaker conn))
+             (make-pub-agent-breaker conn)
+             :registered-name registered-name)
       (send breaker-agent breaker-agent-open-connection conn))
     publisher))
 

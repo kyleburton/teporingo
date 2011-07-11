@@ -35,7 +35,6 @@
 (def *amqp-config*
      {:name               "*none*"
       :port               5672
-      ;; :use-confirm        true
       :connection-timeout 10
       :reconnect-delay-ms 1000
       :queue-name         "foofq"
@@ -43,10 +42,7 @@
       :exchange-name      "/foof"
       :bindings           [{:routing-key        ""}]
       :closed?            true
-      :listeners          {:return  handle-returned-message
-                           ;; :confirm handle-confirmed-message
-                           ;; :flow    handle-flow
-                           }})
+      :listeners          {:return  handle-returned-message}})
 
 
 (pub/register-amqp-broker-cluster
@@ -65,6 +61,10 @@
   (do
     (mq/close-connection! *publisher*)
     (def *publisher* (pub/make-publisher :local-rabbit-cluster)))
+
+  (pub/disable-broker  :local-rabbit-cluster)
+  (pub/enable-broker   :local-rabbit-cluster)
+  (pub/broker-enabled? :local-rabbit-cluster)
 
   (time
    (dotimes [ii 1]

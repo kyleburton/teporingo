@@ -11,16 +11,16 @@
    teporingo.core
    [clj-etl-utils.lang-utils :only [raise]]))
 
-(defonce *disabled-consumers-by-type* (atom {}))
+(defonce *disabled-consumers-by-type* (atom #{}))
 
 (defn disable-consumer-type [type]
-  (swap! *disabled-consumers-by-type* assoc type true))
+  (swap! *disabled-consumers-by-type* conj type))
 
 (defn enable-consumer-type [type]
-  (swap! *disabled-consumers-by-type* dissoc type))
+  (swap! *disabled-consumers-by-type* disj type))
 
 (defn consumer-type-enabled? [type]
-  (not (get @*disabled-consumers-by-type* type false)))
+  (not (contains? @*disabled-consumers-by-type* type)))
 
 (defn ack-message []
   (.basicAck (:channel        @*conn*)
