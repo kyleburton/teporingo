@@ -10,15 +10,22 @@
     AMQP$BasicProperties
     ShutdownSignalException]
    [java.io IOException]
+   ;; [java.util.concurrent ArrayBlockingQueue]
    [com.github.kyleburton.teporingo BreakerOpenException])
   (:require
    [clj-etl-utils.log :as log]
    [teporingo.breaker :as breaker])
   (:use
    teporingo.core
-
    [clj-etl-utils.lang-utils :only [raise]]))
 
+(defonce *broker-registry* (atom {}))
+
+(defn register-amqp-broker-cluster [name config]
+  (swap! *broker-registry* assoc name config))
+
+(defn unregister-amqp-broker-cluster [name]
+  (swap! *broker-registry* dissoc name))
 
 (defn ensure-publisher [conn]
   (if (contains? conn :connections)
@@ -122,8 +129,9 @@
    (close-connection! conn)
    (ensure-connection! conn)
    (swap! conn assoc :closed? false)
+   #_(.offer (:connection-statusq @conn) :ok)
    (catch Exception ex
-     (log/warnf "Error re-establishing connection, will retry: %s %s" ex @conn)
+     (log/warnf ex "Error re-establishing connection, will retry: %s %s" ex @conn)
      (.start
       (Thread.
        ;; TODO: make this a daemon thread, and allow the infinite restart loop to be stopped / broken out of...
@@ -134,6 +142,8 @@
   state)
 
 (defn make-pub-agent-breaker [conn]
+  #_(if-not (:connection-statusq @conn)
+      (swap! conn assoc :connection-statusq (ArrayBlockingQueue.)))
   (breaker/make-circuit-breaker
    (fn inner-fn [the-conn exchange routing-key mandatory immediate props body]
      (do
@@ -183,64 +193,18 @@
         (publish publisher exchange routing-key mandatory immediate props body (dec retries) (concat errors @pub-errs)))
       (log/debugf "looks like we published to %s brokers.\n" @num-published))))
 
+(defn make-publisher [name]
+  (let [config    (get @*broker-registry* name)
+        publisher {:connections (vec (map (fn [m] (atom m)) config))}]
+    (doseq [conn (:connections publisher)]
+      #_(swap! conn
+             assoc
+             :connection-statusq (ArrayBlockingQueue.))
+      (swap! conn
+             assoc
+             :errors []
+             :publish
+             (make-pub-agent-breaker conn))
+      (send breaker-agent breaker-agent-open-connection conn))
+    publisher))
 
-
-
-(comment
-
-  (def *publisher*
-       (let [connections
-             {:connections [(atom {:name "rabbit-1"
-                                   :port 25671
-                                   :use-confirm true
-                                   :connection-timeout 10
-                                   :queue-name "foofq"
-                                   :routing-key ""
-                                   :vhost "/"
-                                   :exchange-name "/foof"
-                                   :closed? true
-                                   #_:publish
-                                   #_(make-publish-circuit-breaker
-                                      {:retry-after 10})})
-                            (atom {:name "rabbit-2"
-                                   :port 25672
-                                   :connecton-timeout 10
-                                   :use-confirm true
-                                   :queue-name "foofq"
-                                   :routing-key "#"
-                                   :vhost "/"
-                                   :exchange-name "/foof"
-                                   :closed? true
-                                   #_:publish
-                                   #_(make-publish-circuit-breaker
-                                      {:retry-after 10})})]}]
-         (doseq [conn (:connections connections)]
-           (swap! conn
-                  assoc
-                  :errors []
-                  :publish
-                  (make-pub-agent-breaker conn))
-           (send breaker-agent breaker-agent-open-connection conn))
-         connections))
-
-  (close-connection! *publisher*)
-
-  (dotimes [ii 1]
-    (try
-     (publish
-      *publisher*
-      "/foof"
-      ""
-      true
-      false
-      MessageProperties/PERSISTENT_TEXT_PLAIN
-      (.getBytes (str "hello there:" ii))
-      2)
-     (printf "SUCCESS[%s]: Published to at least 1 broker.\n" ii)
-     (catch Exception ex
-       (printf "FAILURE[%s] %s\n" ii ex)
-       (log/warnf ex "FAILURE[%s] %s\n" ii ex))))
-
-
-
-  )

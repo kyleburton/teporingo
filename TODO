@@ -1,3 +1,5 @@
+- move 250ms publisher retry delay into configuration
+- do same for other delays, defaults and all other parameters - put into 1 var that can be overridden
 - need to have coordination between the agent and the breaker
  - model using a blocking-queue so the breaker knows when
  - the connection is ready to use

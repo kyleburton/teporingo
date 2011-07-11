@@ -32,6 +32,21 @@
 
 (def *default-routing-key* "#")
 
+;; NB: when we hit clojure 1.3, use ^:dynamic
+(def *conn*         nil)
+(def *consumer*     nil)
+(def *consumer-tag* nil)
+(def *envelope*     nil)
+(def *properties*   nil)
+(def *body*         nil)
+(def *sig*          nil)
+(def *listener*     nil)
+(def *reply-code*   nil)
+(def *reply-text*   nil)
+(def *exchange*     nil)
+(def *routing-key*  nil)
+(def *message-properties* nil)
+
 (defn ensure-connection! [conn]
   (if (contains? conn :connections)
     (doseq [conn (:connections conn)]
@@ -116,8 +131,16 @@
         (proxy
             [ReturnListener]
             []
-          (handleReturn [reply-code reply-text exchange routing-key props body]
-                        (handle-return-fn conn this reply-code reply-text exchange routing-key props body)))]
+          (handleReturn [this reply-code reply-text exchange routing-key props body]
+                        (binding [*reply-code*         reply-code
+                                  *reply-text*         reply-text
+                                  *exchange*           exchange
+                                  *routing-key*        routing-key
+                                  *message-properties* props
+                                  *listener*           this
+                                  *conn*               conn
+                                  *body*               body])
+                        (handle-return-fn)))]
     {:conn     conn
      :type     :return-listener
      :listener return-listener}))

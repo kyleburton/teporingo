@@ -12,15 +12,6 @@
    [clj-etl-utils.lang-utils :only [raise]]))
 
 
-;; NB: when we hit clojure 1.3, use ^:dynamic
-(def *conn*         nil)
-(def *consumer*     nil)
-(def *consumer-tag* nil)
-(def *envelope*     nil)
-(def *properties*   nil)
-(def *body*         nil)
-(def *sig*          nil)
-
 (defn ack-message []
   (.basicAck (:channel        @*conn*)
              (.getDeliveryTag *envelope*) ;; delivery tag
@@ -165,6 +156,11 @@
           :amqp-credentials  amqp-credentials
           :handler-functions handler-functions}))
 
+(defn unregister-consumer [type]
+  (swap! consumer-type-registry
+         dissoc
+         type))
+
 (defn lookup-conumer [type]
   (let [config (type @consumer-type-registry)]
     (if-not config
@@ -199,14 +195,37 @@
       (stop-consumer-with-tag type tag1))))
   (count (type @active-consumers)))
 
-(defn stop-all [type]
-  (loop [res (stop-one type)]
-    (if (pos? res)
-      (recur (stop-one type)))))
+(defn stop-all
+  ([]
+     (doseq [type (keys @active-consumers)]
+       (stop-all type)))
+  ([type]
+     (loop [res (stop-one type)]
+       (if (pos? res)
+         (recur (stop-one type))))))
 
 (comment
   (register-consumer
-   :foof
+   :foof1
+   {:port                          25671
+    :vhost                         "/"
+    :exchange-name                 "/foof"
+    :queue-name                    "foofq"
+    :heartbeat-seconds             5
+    :restart-on-connection-closed? true
+    :ack?                          true}
+   {:delivery
+    (fn []
+      (try
+       (log/infof "CONSUMER: got a delivery")
+       (let [msg (String. *body*)]
+         (log/infof "CONSUMER: body='%s'" msg))
+       (catch Exception ex
+         (log/errorf ex "Consumer Error: %s" ex))))})
+
+
+  (register-consumer
+   :foof2
    {:port                          25672
     :vhost                         "/"
     :exchange-name                 "/foof"
@@ -223,9 +242,12 @@
        (catch Exception ex
          (log/errorf ex "Consumer Error: %s" ex))))})
 
-  (add-consumer :foof)
-  (stop-one :foof)
-  (stop-all :foof)
+  (add-consumer :foof1)
+  (add-consumer :foof2)
+  (stop-one :foof1)
+  (stop-all :foof1)
+  (stop-all :foof2)
+  (stop-all)
 
   consumer-type-registry
 
