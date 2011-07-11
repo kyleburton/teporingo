@@ -1,6 +1,10 @@
-(defproject 
-  rabbit-client "1.0.0"
-  :description "HA Rabbit Client Library"
+(defproject com.github.kyleburton/teporingo "1.0.0"
+  :url         "http://github.com/kyleburton/teporingo"
+  :license {:name         "Eclipse Public License - v 1.0"
+            :url          "http://www.eclipse.org/legal/epl-v10.html"
+            :distribution :repo
+            :comments     "same as Clojure"}
+  :description "Teporingo: HA Rabbit Client Library"
   :dev-dependencies [[swank-clojure "1.4.0-SNAPSHOT"]]
   :dev-resources-path "dev-resources"
   :local-repo-classpath true
@@ -12,5 +16,11 @@
                  [redis.clients/jedis "2.0.0"]
                  [com.rabbitmq/amqp-client "2.5.0"]
                  [org.clojars.kyleburton/clj-etl-utils "1.0.34"]
-                 [com.relaynetwork/clorine "1.0.4"]])
+                 [com.relaynetwork/clorine "1.0.4"]]
+  :autodoc {
+    :name "Teporingo"
+    :page-title "Teporingo: API Documentation"
+    :description "Teporingo: HA Rabbit Client Library"
+    :web-home "http://kyleburton.github.com/projects/teporingo/"
+  })
 
