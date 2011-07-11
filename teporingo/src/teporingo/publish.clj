@@ -115,7 +115,7 @@
       (Thread.
        ;; TODO: make this a daemon thread, and allow the infinite restart loop to be stopped / broken out of...
        (fn []
-         (Thread/sleep 250)
+         (Thread/sleep (:reconnect-delay-ms @conn 250))
          (log/warnf "Delayed reconnect, re-sending off after error connecting previous time...")
          (send-off breaker-agent breaker-agent-open-connection conn))))))
   state)
@@ -154,7 +154,7 @@
     (doseq [err errors]
       (if err
         (log/errorf err "Max retries due to: %s" err)))
-    (raise (MaxPublishRetriesExceededException. "Error: exceeded max retries for publish." (first errors) errors)))
+    (raise (MaxPublishRetriesExceededException. "Error: exceeded max retries for publish." (first errors) (into-array Throwable errors))))
   ;; try publishing to all brokers, ensure we publish to at least the min required
   (let [num-published             (atom 0)
         min-brokers-published-to  (:min-brokers-published-to publisher 1)

@@ -109,15 +109,13 @@
 
 (declare stop-consumer-with-tag)
 
-(def *retry-time* 250)
-
 (defn agent-start-consumer!
   ([state consumer]
      (try
       (log/debugf "agent-start-consumer! type=%s" (:registered-type consumer))
       (shutdown-consumer-quietly! consumer)
       (log/debugf "agent-start-consumer! ensured shut down, about to start.  Type=%s" (:registered-type consumer))
-      (let [conn (:conn           consumer)]
+      (let [conn               (:conn           consumer)]
         (ensure-connection! conn)
         (exchange-declare!  conn)
         (queue-declare!     conn)
@@ -125,11 +123,12 @@
         (attach-listener!   conn consumer))
       (log/debugf "agent-start-consumer! swapping active-consumers for type=%s" (:registered-type consumer))
       (catch Exception ex
-
-        (log/infof ex "agent-start-consumer! error during connect: %s, will re-attempt in %sms" ex *retry-time*)
-        (delay-by
-         *retry-time*
-         (send-off consumer-restart-agent agent-start-consumer! consumer))))
+        (let [conn               (:conn           consumer)
+              reconnect-delay-ms (:reconnect-delay-ms @conn 250)]
+         (log/infof ex "agent-start-consumer! error during connect: %s, will re-attempt in %sms" ex reconnect-delay-ms)
+         (delay-by
+             reconnect-delay-ms
+           (send-off consumer-restart-agent agent-start-consumer! consumer)))))
      state)
   ([state consumer consumer-tag]
      (log/debugf "agent-start-consumer! type:%s tag:%s" (:registered-type consumer) consumer-tag)

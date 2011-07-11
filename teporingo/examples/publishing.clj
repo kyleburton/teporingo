@@ -37,6 +37,7 @@
       :port               5672
       ;; :use-confirm        true
       :connection-timeout 10
+      :reconnect-delay-ms 1000
       :queue-name         "foofq"
       :vhost              "/"
       :exchange-name      "/foof"
@@ -66,7 +67,7 @@
     (def *publisher* (pub/make-publisher :local-rabbit-cluster)))
 
   (time
-   (dotimes [ii 100000]
+   (dotimes [ii 1]
      (try
       (pub/publish
        *publisher*

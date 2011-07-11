@@ -10,13 +10,13 @@ package com.github.kyleburton.teporingo;
 
 public class MaxPublishRetriesExceededException extends Exception {
   public Throwable [] errors;
-  public BreakerOpenException(String msg, Throwable [] theErrors) {
-    errors = theErrors;
+  public MaxPublishRetriesExceededException(String msg, Throwable [] theErrors) {
     super(msg);
+    errors = theErrors;
   }
 
-  public BreakerOpenException(String msg,Throwable cause, Throwable [] theErrors) {
-    errors = theErrors;
+  public MaxPublishRetriesExceededException(String msg,Throwable cause, Throwable [] theErrors) {
     super(msg,cause);
+    errors = theErrors;
   }
 }
