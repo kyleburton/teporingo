@@ -2,7 +2,7 @@ h1. Teporingo [1]
 
 Clojure "RabbitMQ":http://www.rabbitmq.com/ Client with a focus on HA Configurations.
 
-See "rabbit-client/README.textile":/kyleburton/teporingo/tree/master/rabbit-client/
+See "teporingo/README.textile":/kyleburton/teporingo/tree/master/rabbit-client/
 
 [1] http://en.wikipedia.org/wiki/Volcano_Rabbit
 
