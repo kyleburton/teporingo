@@ -4,7 +4,9 @@
     Consumer
     Envelope
     AMQP$BasicProperties
-    ShutdownSignalException])
+    ShutdownSignalException]
+   [redis.clients.jedis
+    Jedis])
   (:require
    [clj-etl-utils.log :as log])
   (:use
@@ -71,7 +73,7 @@
                            (consume)))
                   (^void handleDelivery [^Consumer this ^String consumer-tag ^Envelope envelope ^AMQP$BasicProperties properties ^bytes body]
                          (let [raw-body          body
-                               [message-id body] (split-body-and-msg-id (String. raw-body))]
+                               [message-id message-timestamp body] (split-body-and-msg-id (String. raw-body))]
                            (binding [*conn*         conn
                                      *consumer*     this
                                      *consumer-tag* consumer-tag
@@ -79,7 +81,8 @@
                                      *properties*   properties
                                      *body*         body
                                      *raw-body*     raw-body
-                                     *message-id*   message-id]
+                                     *message-id*   message-id
+                                     *message-timestamp* (Long/parseLong message-timestamp)]
                              (delivery)
                              (if (:ack? @conn)
                                (ack-message)))))
@@ -233,3 +236,36 @@
          (recur (stop-one type))))))
 
 
+(comment
+ (def *jedis* (Jedis. "localhost"))
+ (.set *jedis* "foo" "bar")
+ (.get *jedis* "foo")
+ (.del *jedis* (into-array String ["foo"]))
+
+ (def *jedis2* (Jedis. "localhost"))
+
+ ;; see: http://redis.io/commands/setnx
+ (.getSet *jedis* "foo" "first")
+
+ (.setnx *jedis* "foo" "second")
+
+ ;; 1. if the mesage's timestamp is > max-time, route to the expired
+ ;; messages queue for investigation.  This can happen when a message
+ ;; is delivered _after_ our message-id store expiration or reaping
+ ;; (cleanup) time.  This will likely be becuase of a failed rabbit
+ ;; not coming back on-line and delivering messages from a very old
+ ;; persistent store
+
+ ;; 2. if the message id is marked as 'processed', toss it out
+ ;; 3. call (.setnx rn.lock.<<msg-id>> <<unix-timestamp>>+<<timemout>>+1) if we get a 1 we got the lock
+ ;;     if we got a 0, we did not
+ ;; 4. call .get on the lock, check the timeout
+ ;; 5. if timed-out, call .getSet with a new tstamp
+ ;;     if we get back the earlier lock, then we have the current
+ ;;     lock, if not, someone else got the lock
+ ;; 6. if we didn't get the lock, sleep (educated, based on the observed timestamps) and go back to the beginning
+ ;;
+
+ (with-msg-id-lock msg-id timeout
+   body)
+ )

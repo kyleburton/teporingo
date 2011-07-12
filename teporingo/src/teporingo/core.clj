@@ -42,6 +42,7 @@
 (def *body*         nil)
 (def *raw-body*     nil)
 (def *message-id*   nil)
+(def *message-timestamp* nil)
 (def *sig*          nil)
 (def *listener*     nil)
 (def *reply-code*   nil)
@@ -258,9 +259,11 @@
 (defn wrap-body-with-msg-id [^String body]
   (str (java.util.UUID/randomUUID)
        "\0"
+       (.getTime (java.util.Date.))
+       "\0"
        body))
 
 (defn split-body-and-msg-id [bytes]
   (let [body (String. bytes)]
-    (vec (.split body "\0" 2))))
+    (vec (.split body "\0" 3))))
 
