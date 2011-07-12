@@ -237,35 +237,57 @@
 
 
 (comment
- (def *jedis* (Jedis. "localhost"))
- (.set *jedis* "foo" "bar")
- (.get *jedis* "foo")
- (.del *jedis* (into-array String ["foo"]))
+  (def *jedis*
+       {:host "localhost"
+        :port 6379
+        :jedis  (atom nil)})
 
- (def *jedis2* (Jedis. "localhost"))
+  (defn ensure-jedis-connection [conn]
+    (if-not @(:jedis conn)
+      (reset! (:jedis conn)
+              (Jedis. (:host conn)
+                      (:port conn)))))
 
- ;; see: http://redis.io/commands/setnx
- (.getSet *jedis* "foo" "first")
+  (ensure-jedis-connection *jedis*)
 
- (.setnx *jedis* "foo" "second")
+  (.set @(:jedis *jedis*) "foo" "bar")
+  (.get @(:jedis *jedis*) "foo")
+  (.del @(:jedis *jedis*) (into-array String ["foo"]))
 
- ;; 1. if the mesage's timestamp is > max-time, route to the expired
- ;; messages queue for investigation.  This can happen when a message
- ;; is delivered _after_ our message-id store expiration or reaping
- ;; (cleanup) time.  This will likely be becuase of a failed rabbit
- ;; not coming back on-line and delivering messages from a very old
- ;; persistent store
+  ;; see: http://redis.io/commands/setnx
+  (.getSet *jedis* "foo" "first")
 
- ;; 2. if the message id is marked as 'processed', toss it out
- ;; 3. call (.setnx rn.lock.<<msg-id>> <<unix-timestamp>>+<<timemout>>+1) if we get a 1 we got the lock
- ;;     if we got a 0, we did not
- ;; 4. call .get on the lock, check the timeout
- ;; 5. if timed-out, call .getSet with a new tstamp
- ;;     if we get back the earlier lock, then we have the current
- ;;     lock, if not, someone else got the lock
- ;; 6. if we didn't get the lock, sleep (educated, based on the observed timestamps) and go back to the beginning
- ;;
+  (.setnx *jedis* "foo" "second")
 
- (with-msg-id-lock msg-id timeout
-   body)
- )
+  ;; 1. if the mesage's timestamp is > max-time, route to the expired
+  ;; messages queue for investigation.  This can happen when a message
+  ;; is delivered _after_ our message-id store expiration or reaping
+  ;; (cleanup) time.  This will likely be becuase of a failed rabbit
+  ;; not coming back on-line and delivering messages from a very old
+  ;; persistent store
+
+  ;; 2. if the message id is marked as 'processed', toss it out
+  ;; 3. call (.setnx teporingo.lock.<<msg-id>> <<unix-timestamp>>+<<timemout>>+1) if we get a 1 we got the lock
+  ;;     if we got a 0, we did not
+  ;; 4. call .get on the lock, check the timeout
+  ;; 5. if timed-out, call .getSet with a new tstamp
+  ;;     if we get back the earlier lock, then we have the current
+  ;;     lock, if not, someone else got the lock
+  ;; 6. if we didn't get the lock, sleep (educated, based on the observed timestamps) and go back to the beginning
+  ;;
+
+  (defn message-id-processed? [msg-id]
+    (let [res (.get @(:jedis *jedis*) (str "teporingo.msg-complete." msg-id))]
+      (and
+       res
+       (>= (Long/parseLong res) 1))))
+
+  (defn set-message-procesed! [msg-id]
+    (.incr @(:jedis *jedis*) (str "teporingo.msg-complete." msg-id)))
+
+  (message-id-processed? "foo")
+  (set-message-procesed! "foo")
+
+  (with-msg-id-lock msg-id timeout
+    body)
+  )
