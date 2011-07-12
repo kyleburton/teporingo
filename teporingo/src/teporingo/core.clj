@@ -40,6 +40,8 @@
 (def *envelope*     nil)
 (def *properties*   nil)
 (def *body*         nil)
+(def *raw-body*     nil)
+(def *message-id*   nil)
 (def *sig*          nil)
 (def *listener*     nil)
 (def *reply-code*   nil)
@@ -252,4 +254,13 @@
 
 (defmacro delay-by [ms & body]
   `(delay-by* ~ms (fn the-delayed [] ~@body)))
+
+(defn wrap-body-with-msg-id [^String body]
+  (str (java.util.UUID/randomUUID)
+       "\0"
+       body))
+
+(defn split-body-and-msg-id [bytes]
+  (let [body (String. bytes)]
+    (vec (.split body "\0" 2))))
 

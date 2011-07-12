@@ -70,15 +70,19 @@
                                   @the-consumer)
                            (consume)))
                   (^void handleDelivery [^Consumer this ^String consumer-tag ^Envelope envelope ^AMQP$BasicProperties properties ^bytes body]
-                         (binding [*conn*         conn
-                                   *consumer*     this
-                                   *consumer-tag* consumer-tag
-                                   *envelope*     envelope
-                                   *properties*   properties
-                                   *body*         body]
-                           (delivery)
-                           (if (:ack? @conn)
-                             (ack-message))))
+                         (let [raw-body          body
+                               [message-id body] (split-body-and-msg-id (String. raw-body))]
+                           (binding [*conn*         conn
+                                     *consumer*     this
+                                     *consumer-tag* consumer-tag
+                                     *envelope*     envelope
+                                     *properties*   properties
+                                     *body*         body
+                                     *raw-body*     raw-body
+                                     *message-id*   message-id]
+                             (delivery)
+                             (if (:ack? @conn)
+                               (ack-message)))))
                   (^void handleShutdownSignal [^Consumer this ^String consumer-tag ^ShutdownSignalException sig]
                          (binding [*conn*         conn
                                    *consumer*     this

@@ -5,3 +5,21 @@ Clojure "RabbitMQ":http://www.rabbitmq.com/ Client with a focus on HA Configurat
 See "rabbit-client/README.textile":/kyleburton/teporingo/tree/master/rabbit-client/
 
 [1] http://en.wikipedia.org/wiki/Volcano_Rabbit
+
+
+h1. Features
+
+Default configuration is for exchagnes, queues and bindings to be durable.
+
+h3. Publishing
+
+Publishers are a list of broker configurations.  Publishers are registered to logical names.  Publishing is performed to all the brokers in the configuration.  At least 1 broker must be publised to or the client library throws an exception.
+
+h3. Consuming
+
+Consumers are registered as a logical name.  A consumer is an amqp endpoint configuration (vhost, exchagne, queue, bindings).  Consumers can be started / stopped by requesting to 'add-consumer' of a given registered name.
+
+Consumers will automatically attempt to reconnect if they are shut down unexpectedly.  This will occurr (default is 250ms) until a conneciton can be re-established or until they are explicitly shut down.
+
+
+h1. Licnese

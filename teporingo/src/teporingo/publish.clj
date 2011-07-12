@@ -155,6 +155,7 @@
      (:closed? @conn))
    (fn err-fn [state ex]
      ;; (swap! conn update-in [:errors] conj ex)
+     (log/infof ex "Error triggered: %s" ex)
      (swap! conn assoc :closed? true)
      (send-off breaker-agent breaker-agent-open-connection conn))))
 
@@ -173,7 +174,8 @@
         pub-errs                  (atom [])
         mandatory                 (if-not (nil? mandatory) mandatory true)
         immediate                 (if-not (nil? immediate) immediate true)
-        message-props             (or props MessageProperties/PERSISTENT_TEXT_PLAIN)]
+        message-props             (or props MessageProperties/PERSISTENT_TEXT_PLAIN)
+        body                      (.getBytes (wrap-body-with-msg-id body))]
     (log/infof "publish: mandatory:%s immediate:%s" mandatory immediate)
     (doseq [conn (:connections publisher)]
       (let [res (publish-1 conn exchange routing-key mandatory immediate props body)]

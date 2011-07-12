@@ -67,7 +67,7 @@
   (pub/broker-enabled? :local-rabbit-cluster)
 
   (time
-   (dotimes [ii 10]
+   (dotimes [ii 1]
      (try
       (pub/publish
        *publisher*
@@ -76,7 +76,7 @@
        true  ;; mandatory
        false ;; immediate
        MessageProperties/PERSISTENT_TEXT_PLAIN
-       (.getBytes (str "hello there:" ii))
+       (str "hello there:" ii)
        2)
       (printf "SUCCESS[%s]: Published to at least 1 broker.\n" ii)
       (catch Exception ex

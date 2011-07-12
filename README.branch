@@ -1,0 +1,7 @@
+h1. Branch: Redis Message Deduplication
+
+Wrap all message bodies during the publish to add a UUID.
+
+Unwrap (and bind) before handing to the receiver.
+
+*raw-body* and *message-id* vs *body*
