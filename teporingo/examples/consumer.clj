@@ -14,7 +14,14 @@
       :heartbeat-seconds             5
       :restart-on-connection-closed? true
       :reconnect-delay-ms            1000
+      :routing-key                   ""
+      :bindings                      [{:routing-key ""}]
       :ack?                          true})
+
+;; :routing-key ""
+;; :routing-key "#" ;; foo foo.bar foo.bar.qux
+;; :routing-key "client-id.*" ;; client-id.4
+;; :routing-key "client-id.#" ;; client-id.foo.bar
 
 (def *amqp02-config*
      (assoc *amqp01-config*
