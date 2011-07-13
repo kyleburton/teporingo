@@ -10,8 +10,8 @@
     AMQP$BasicProperties
     ShutdownSignalException]
    [java.io IOException]
-   ;; [java.util.concurrent ArrayBlockingQueue]
-   [com.github.kyleburton.teporingo BreakerOpenException MaxPublishRetriesExceededException])
+   [com.github.kyleburton.teporingo
+    BreakerOpenException MaxPublishRetriesExceededException])
   (:require
    [clj-etl-utils.log :as log]
    [teporingo.breaker :as breaker])
@@ -97,7 +97,14 @@
 ;; when it's returned it doesn't have a sequenceNo on the message, so
 ;; there is no way to coorelate the message we attempted to publish
 ;; with the one that was returned
-(defn publish-1 [^Atom conn ^String exchange ^String routing-key ^Boolean mandatory ^Boolean immediate ^AMQP$BasicProperties props ^bytes body]
+(defn publish-1
+  [^Atom conn
+   ^String exchange
+   ^String routing-key
+   ^Boolean mandatory
+   ^Boolean immediate
+   ^AMQP$BasicProperties props
+   ^bytes body]
   (try
    ((:publish @conn) conn exchange routing-key mandatory immediate props body)
    {:res true :ex nil}
@@ -125,7 +132,8 @@
        (log/warnf ex "Error re-establishing connection, will retry: %s %s" ex @conn)
        (.start
         (Thread.
-         ;; TODO: make this a daemon thread, and allow the infinite restart loop to be stopped / broken out of...
+         ;; TODO: make this a daemon thread, and allow the infinite
+         ;; restart loop to be stopped / broken out of...
          (fn []
            (Thread/sleep (:reconnect-delay-ms @conn 250))
            (log/warnf "Delayed reconnect, re-sending off after error connecting previous time...")
@@ -160,14 +168,25 @@
      (send-off breaker-agent breaker-agent-open-connection conn))))
 
 
-(defn publish [^Map publisher ^String exchange ^String routing-key ^Boolean mandatory ^Boolean immediate ^AMQP$BasicProperties props ^bytes body retries & [errors]]
+(defn publish
+  [^Map publisher
+   ^String exchange
+   ^String routing-key
+   ^Boolean mandatory
+   ^Boolean immediate
+   ^AMQP$BasicProperties props
+   ^bytes body
+   retries & [errors]]
   (when (< retries 1)
     (log/errorf "Error: exceeded max retries for publish %s : %s" publisher
                 (vec errors))
     (doseq [err errors]
       (if err
         (log/errorf err "Max retries due to: %s" err)))
-    (raise (MaxPublishRetriesExceededException. "Error: exceeded max retries for publish." (first errors) (into-array Throwable errors))))
+    (raise (MaxPublishRetriesExceededException.
+            "Error: exceeded max retries for publish."
+            (first errors)
+            (into-array Throwable errors))))
   ;; try publishing to all brokers, ensure we publish to at least the min required
   (let [num-published             (atom 0)
         min-brokers-published-to  (:min-brokers-published-to publisher 1)
@@ -185,7 +204,15 @@
     (if (< @num-published min-brokers-published-to)
       (do
         (log/debugf "num-published %s was <%s, retrying..." @num-published min-brokers-published-to)
-        (publish publisher exchange routing-key mandatory immediate props body (dec retries) (concat errors @pub-errs)))
+        (publish publisher
+                 exchange
+                 routing-key
+                 mandatory
+                 immediate
+                 props
+                 body
+                 (dec retries)
+                 (concat errors @pub-errs)))
       (log/debugf "looks like we published to %s brokers.\n" @num-published))))
 
 (defn make-publisher [registered-name]

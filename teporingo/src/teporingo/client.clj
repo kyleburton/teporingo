@@ -1,40 +1,91 @@
+;; # AMQP Consumer Module
+;;
+;; This module provides a wrapper around the
+;; [RabbitMQ](http://rabbitmq.org/ "RabbitMQ") client library's
+;; Consumer class.
+;;
+;; ## Consumer Registry
+;;
+;; The module includes a registry for consumer types and controls that
+;; allow you to dynamically add (start) and remove (shutdown)
+;; consumers.
+;;
+
 (ns teporingo.client
   (:import
    [com.rabbitmq.client
     Consumer
     Envelope
     AMQP$BasicProperties
-    ShutdownSignalException]
-   [redis.clients.jedis
-    Jedis])
+    ShutdownSignalException])
   (:require
    [clj-etl-utils.log :as log])
   (:use
    teporingo.core
    [clj-etl-utils.lang-utils :only [raise]]))
 
+;; Flag to allow consuemrs of a specific type to be disabled - no more
+;; will be able to be started.  Types can be temporarily disabled
+;; without having to be removed from the registry.
 (defonce *disabled-consumers-by-type* (atom #{}))
 
+;; Disable a consumer of a specific type.
 (defn disable-consumer-type [type]
   (swap! *disabled-consumers-by-type* conj type))
 
+;; Enable a consumer of a specific type.
 (defn enable-consumer-type [type]
   (swap! *disabled-consumers-by-type* disj type))
 
+;; Test if a consumer type is enabled.
 (defn consumer-type-enabled? [type]
   (not (contains? @*disabled-consumers-by-type* type)))
 
+;; Acknowledge a message to the channel.  This will notify the AMQP
+;; Broker to mark the message as delivered and handled so that it will
+;; not be returned or delivered again.
 (defn ack-message []
   (.basicAck (:channel        @*conn*)
-             (.getDeliveryTag *envelope*) ;; delivery tag
+             (.getDeliveryTag *envelope*)
              false))
 
+;; ## Consumer Management Agent Starting and restarting consumers is
+;; managed by an agent.  This decouples the act of initiating the
+;; restart from the consumer that was being shut down - allowing it to
+;; be completely shut down.
 (defonce consumer-restart-agent (agent {}))
 (declare start-consumer!)
+
+;; This is a registry of the currently active consumers, keyed by
+;; `consumerTag`.
 (defonce active-consumers (atom {}))
 
-;; TODO: throw if they didn't provide a :delivery handler?
+;; Create, but do not start, an AMQP consumer.
+;;
+;; `type` must be a registered consumer type.  See `register-consumer`.
+;;
+;; `conn` must be an atom containing a map to hold the connection and
+;; configuration for the connection.
+;;
+;; `handlers` must be a dispatch map for the event handlers that
+;; implement the consumer.  Valid entries are:
+;;
+;; * `:delivery` *required*
+;;    to handle delivery of a message from the broker.
+;; * `:cancel`
+;; * `:recover`
+;; * `:shutdown`
+;;
+;; Note that though a `:shutdown` handler may be specified, Teporingo
+;; implements additional behavior on shutdown if the consumer is
+;; configured to be restarted (via the key
+;; `:restart-on-connection-closed?`): it will send a restart request
+;; to the agent in the event the consumer dies.
+
 (defn make-consumer [type conn handlers]
+  (if-not (:delivery handlers)
+    (raise "Error: can not create a consumer without a :delivery handler specified; passed: %s"
+           (vec (keys handlers))))
   (let [default-handler (fn [& args]
                           nil)
         handlers (merge {:cancel default-handler
@@ -71,9 +122,14 @@
                                   consumer-tag
                                   @the-consumer)
                            (consume)))
-                  (^void handleDelivery [^Consumer this ^String consumer-tag ^Envelope envelope ^AMQP$BasicProperties properties ^bytes body]
+                  (^void handleDelivery [^Consumer this
+                                         ^String consumer-tag
+                                         ^Envelope envelope
+                                         ^AMQP$BasicProperties properties
+                                         ^bytes body]
                          (let [raw-body          body
-                               [message-id message-timestamp body] (split-body-and-msg-id (String. raw-body))]
+                               [message-id message-timestamp body]
+                               (split-body-and-msg-id (String. raw-body))]
                            (binding [*conn*         conn
                                      *consumer*     this
                                      *consumer-tag* consumer-tag
@@ -86,7 +142,9 @@
                              (delivery)
                              (if (:ack? @conn)
                                (ack-message)))))
-                  (^void handleShutdownSignal [^Consumer this ^String consumer-tag ^ShutdownSignalException sig]
+                  (^void handleShutdownSignal [^Consumer this
+                                               ^String consumer-tag
+                                               ^ShutdownSignalException sig]
                          (binding [*conn*         conn
                                    *consumer*     this
                                    *consumer-tag* consumer-tag
@@ -94,7 +152,8 @@
                            (shutdown)
                            (log/infof "Consumer[%s/%s] was shut down %s" type consumer-tag sig)
                            (when (:restart-on-connection-closed? @conn)
-                             (log/infof "Consumer[%s/%s] will be restarted: conn=%s consumer=%s" type consumer-tag @conn @the-consumer)
+                             (log/infof "Consumer[%s/%s] will be restarted: conn=%s consumer=%s"
+                                        type consumer-tag @conn @the-consumer)
                              (start-consumer! @the-consumer consumer-tag))))
                   (^void handleRecoverOk [^Consumer this]
                          (binding [*conn*         conn
@@ -112,7 +171,8 @@
         (:channel      @(:conn consumer))
         (:consumer-tag @(:conn consumer) "")))
      :else
-     (raise "Error: don't know how to shutdown consumer of type=%s, only :consumer is supported. in %s" (:type consumer) consumer))
+     (raise "Error: don't know how to shutdown consumer of type=%s, only :consumer is supported. in %s"
+            (:type consumer) consumer))
    (finally
     (close-connection! (:conn consumer))))
   consumer)
@@ -131,18 +191,21 @@
      (try
       (log/debugf "agent-start-consumer! type=%s" (:registered-type consumer))
       (shutdown-consumer-quietly! consumer)
-      (log/debugf "agent-start-consumer! ensured shut down, about to start.  Type=%s" (:registered-type consumer))
+      (log/debugf "agent-start-consumer! ensured shut down, about to start.  Type=%s"
+                  (:registered-type consumer))
       (let [conn               (:conn           consumer)]
         (ensure-connection! conn)
         (exchange-declare!  conn)
         (queue-declare!     conn)
         (queue-bind!        conn)
         (attach-listener!   conn consumer))
-      (log/debugf "agent-start-consumer! swapping active-consumers for type=%s" (:registered-type consumer))
+      (log/debugf "agent-start-consumer! swapping active-consumers for type=%s"
+                  (:registered-type consumer))
       (catch Exception ex
         (let [conn               (:conn           consumer)
               reconnect-delay-ms (:reconnect-delay-ms @conn 250)]
-          (log/infof ex "agent-start-consumer! error during connect: %s, will re-attempt in %sms" ex reconnect-delay-ms)
+          (log/infof ex "agent-start-consumer! error during connect: %s, will re-attempt in %sms"
+                     ex reconnect-delay-ms)
           (delay-by
               reconnect-delay-ms
             (start-consumer! consumer)))))
@@ -236,58 +299,3 @@
          (recur (stop-one type))))))
 
 
-(comment
-  (def *jedis*
-       {:host "localhost"
-        :port 6379
-        :jedis  (atom nil)})
-
-  (defn ensure-jedis-connection [conn]
-    (if-not @(:jedis conn)
-      (reset! (:jedis conn)
-              (Jedis. (:host conn)
-                      (:port conn)))))
-
-  (ensure-jedis-connection *jedis*)
-
-  (.set @(:jedis *jedis*) "foo" "bar")
-  (.get @(:jedis *jedis*) "foo")
-  (.del @(:jedis *jedis*) (into-array String ["foo"]))
-
-  ;; see: http://redis.io/commands/setnx
-  (.getSet *jedis* "foo" "first")
-
-  (.setnx *jedis* "foo" "second")
-
-  ;; 1. if the mesage's timestamp is > max-time, route to the expired
-  ;; messages queue for investigation.  This can happen when a message
-  ;; is delivered _after_ our message-id store expiration or reaping
-  ;; (cleanup) time.  This will likely be becuase of a failed rabbit
-  ;; not coming back on-line and delivering messages from a very old
-  ;; persistent store
-
-  ;; 2. if the message id is marked as 'processed', toss it out
-  ;; 3. call (.setnx teporingo.lock.<<msg-id>> <<unix-timestamp>>+<<timemout>>+1) if we get a 1 we got the lock
-  ;;     if we got a 0, we did not
-  ;; 4. call .get on the lock, check the timeout
-  ;; 5. if timed-out, call .getSet with a new tstamp
-  ;;     if we get back the earlier lock, then we have the current
-  ;;     lock, if not, someone else got the lock
-  ;; 6. if we didn't get the lock, sleep (educated, based on the observed timestamps) and go back to the beginning
-  ;;
-
-  (defn message-id-processed? [msg-id]
-    (let [res (.get @(:jedis *jedis*) (str "teporingo.msg-complete." msg-id))]
-      (and
-       res
-       (>= (Long/parseLong res) 1))))
-
-  (defn set-message-procesed! [msg-id]
-    (.incr @(:jedis *jedis*) (str "teporingo.msg-complete." msg-id)))
-
-  (message-id-processed? "foo")
-  (set-message-procesed! "foo")
-
-  (with-msg-id-lock msg-id timeout
-    body)
-  )

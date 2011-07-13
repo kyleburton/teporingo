@@ -78,14 +78,16 @@
       (.setReturnListener channel  (:listener (make-return-listener conn listener)))
       (= :confirm listener-type)
       (.setConfirmListener channel (:listener (make-confirm-listener conn listener)))
-      ;; NB: allowing a default consumer is questionable IMO
-      ;; if we do that, we should wrap this in a (make-default-consumer-listner listener) as we do with the other listener types
-      ;; (= :default-consumer listener-type)
-      ;; (.setDefaultConsumer channel listener)
+      ;; NB: allowing a default consumer is questionable IMO if we do
+      ;; that, we should wrap this in a (make-default-consumer-listner
+      ;; listener) as we do with the other listener types (=
+      ;; :default-consumer listener-type) (.setDefaultConsumer channel
+      ;; listener)
       (= :flow listener-type)
       (.setFlowListener    channel (:listener (make-flow-listener conn listener)))
       :else
-      (raise "Error: unrecognized listener type: %s (not one of: :consumer or :return-listener) in conn=%s listener=%s" (str listener-type)
+      (raise "Error: unrecognized listener type: %s (not one of: :consumer or :return-listener) in conn=%s listener=%s"
+             (str listener-type)
              @conn
              listener))))
 

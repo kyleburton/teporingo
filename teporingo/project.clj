@@ -1,11 +1,13 @@
-(defproject com.github.kyleburton/teporingo "1.0.0"
+(defproject com.github.kyleburton/teporingo "1.0.1-SNAPSHOT"
   :url         "http://github.com/kyleburton/teporingo"
   :license {:name         "Eclipse Public License - v 1.0"
             :url          "http://www.eclipse.org/legal/epl-v10.html"
             :distribution :repo
             :comments     "same as Clojure"}
+  :main teopringo.core
   :description "Teporingo: HA Rabbit Client Library"
-  :dev-dependencies [[swank-clojure "1.4.0-SNAPSHOT"]]
+  :dev-dependencies [[swank-clojure "1.4.0-SNAPSHOT"]
+                     [lein-marginalia "0.6.0"]]
   :dev-resources-path "dev-resources"
   :local-repo-classpath true
   :java-source-path [["java"]]

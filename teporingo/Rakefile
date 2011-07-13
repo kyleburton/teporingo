@@ -1,2 +1,33 @@
 # Dir.chdir ".."
 load '../Rakefile'
+
+require 'rb-inotify'
+
+require 'sinatra'
+class DocServer < Sinatra::Base
+  public_dir = File.dirname(__FILE__) + '/docs'
+  puts "setting public (html) to: #{public_dir}"
+  set :public, public_dir
+  get '/' do
+    redirect to('/uberdoc.html')
+  end
+end
+
+desc "Run the documentation server"
+task :sinatra do
+  DocServer.run!
+end
+
+desc "Autogenerate Documentation as source files change."
+task :autogen do
+  prev = `ls -lR src`
+  while true
+    curr = `ls -lR src`
+    if prev != curr
+      puts "something changed"
+      prev = curr
+      system "lein", "marg"
+    end
+    sleep 0.5
+  end
+end
