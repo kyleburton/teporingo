@@ -23,10 +23,11 @@ end
 
 namespace :teporingo do
   desc "Run swank server"
-  task :swank do
-    Dir.chdir("rabbit-client") do |p|
+  task :swank, :port do |t,args|
+    port = args[:port] || '4005'
+    Dir.chdir("teporingo") do |p|
       system "lein", "deps"
-      system "lein", "swank"
+      system "lein", "swank", port
     end
   end
 
