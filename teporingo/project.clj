@@ -4,7 +4,6 @@
             :url          "http://www.eclipse.org/legal/epl-v10.html"
             :distribution :repo
             :comments     "same as Clojure"}
-  :main teopringo.core
   :description "Teporingo: HA Rabbit Client Library"
   :dev-dependencies [[swank-clojure "1.4.0-SNAPSHOT"]
                      [lein-marginalia "0.6.0"]]
