@@ -258,14 +258,23 @@
 (defmacro delay-by [ms & body]
   `(delay-by* ~ms (fn the-delayed [] ~@body)))
 
+(def *teporingo-magic* (str "\0\0" "TEP"))
+
 (defn wrap-body-with-msg-id [^String body]
-  (str (java.util.UUID/randomUUID)
-       "\0"
-       (.getTime (java.util.Date.))
-       "\0"
-       body))
+  (str
+   *teporingo-magic*
+   "\0"
+   (java.util.UUID/randomUUID)
+   "\0"
+   (.getTime (java.util.Date.))
+   "\0"
+   body))
 
 (defn split-body-and-msg-id [bytes]
   (let [body (String. bytes)]
-    (vec (.split body "\0" 3))))
-
+    (if (.startsWith body *teporingo-magic*)
+      ;; split into: magic|msg-id|tstamp|wrapped-body
+      (vec (.split (.substring body (.length *teporingo-magic*))
+                   "\0"
+                   3))
+      [nil nil nil body])))

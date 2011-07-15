@@ -82,6 +82,12 @@
 ;; `:restart-on-connection-closed?`): it will send a restart request
 ;; to the agent in the event the consumer dies.
 
+(defn parse-long [thing]
+  (try
+   (Long/parseLong thing)
+   (catch NumberFormatException ex
+     0)))
+
 (defn make-consumer [type conn handlers]
   (if-not (:delivery handlers)
     (raise "Error: can not create a consumer without a :delivery handler specified; passed: %s"
@@ -128,7 +134,7 @@
                                          ^AMQP$BasicProperties properties
                                          ^bytes body]
                          (let [raw-body          body
-                               [message-id message-timestamp body]
+                               [teporing-hdr-magic message-id message-timestamp body]
                                (split-body-and-msg-id (String. raw-body))]
                            (binding [*conn*         conn
                                      *consumer*     this
@@ -138,7 +144,7 @@
                                      *body*         body
                                      *raw-body*     raw-body
                                      *message-id*   message-id
-                                     *message-timestamp* (Long/parseLong message-timestamp)]
+                                     *message-timestamp* (parse-long message-timestamp)]
                              (delivery)
                              (if (:ack? @conn)
                                (ack-message)))))
