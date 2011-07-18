@@ -277,4 +277,4 @@
       (vec (.split (.substring body (.length *teporingo-magic*))
                    "\0"
                    3))
-      [nil nil nil body])))
+      [nil nil body])))

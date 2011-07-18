@@ -134,7 +134,7 @@
                                          ^AMQP$BasicProperties properties
                                          ^bytes body]
                          (let [raw-body          body
-                               [teporing-hdr-magic message-id message-timestamp body]
+                               [message-id message-timestamp body]
                                (split-body-and-msg-id (String. raw-body))]
                            (binding [*conn*         conn
                                      *consumer*     this
