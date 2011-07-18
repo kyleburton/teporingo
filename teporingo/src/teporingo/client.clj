@@ -256,7 +256,7 @@
          dissoc
          type))
 
-(defn lookup-conumer [type]
+(defn lookup-consumer [type]
   (let [config (type @consumer-type-registry)]
     (if-not config
       (raise "Error: unregistered consumer type: %s" type))
@@ -264,7 +264,7 @@
 
 
 (defn add-consumer [type]
-  (let [config        (lookup-conumer type)
+  (let [config        (lookup-consumer type)
         conn          (atom (:amqp-credentials  config))
         consumer      (make-consumer type conn (:handler-functions config))]
     (start-consumer! consumer)))
