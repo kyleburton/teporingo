@@ -257,7 +257,7 @@
          type))
 
 (defn lookup-consumer [type]
-  (let [config (type @consumer-type-registry)]
+  (let [config (get @consumer-type-registry type)]
     (if-not config
       (raise "Error: unregistered consumer type: %s" type))
     config))
