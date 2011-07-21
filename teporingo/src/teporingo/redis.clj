@@ -5,7 +5,7 @@
   (require
    [clj-etl-utils.log :as log])
   (:use
-   [teporingo.core :only [*message-id*]]
+   [teporingo.core :only [*message-id* *consumer-tag*]]
    [clj-etl-utils.lang-utils :only [raise aprog1]]))
 
 (defonce *jedis-pools* (atom {}))
@@ -46,8 +46,11 @@
 (defn- perform-processing-and-release-lock [the-fn now tstamp lock-key process-key]
   (aprog1
       ;; NB: added in try/catch exception handling - release the lock in the finally block
-      {:res :processed :val (the-fn)}
-    (log/infof "adding processed key [%s@%s] and releasing lock %s@%s"
+      {:res    :ok
+       :reason :processed
+       :val    (the-fn)}
+    (log/infof "[%s] adding processed key [%s@%s] and releasing lock %s@%s"
+               *consumer-tag*
                process-key tstamp lock-key tstamp)
     (.zadd *jedis* "teporingo.keys.processed" (double now) process-key)
     (.del *jedis* (into-array String [lock-key]))))
@@ -65,45 +68,52 @@
         now         (.getTimeInMillis (java.util.Calendar/getInstance))
         timeout     (:timeout spec *lock-timeout*)
         tstamp      (str (+ now timeout 1000))
-        retries     (:retries spec 0)]
-    (log/infof "enter lock guard: %s@%s" the-key tstamp)
-    (if (> retries 3)
-      {:res     :max-retries
-       :retries retries}
+        retries     (:retries spec 0)
+        max-retries (:max-retries spec 3)]
+    (log/infof "[%s] enter lock guard: %s@%s" *consumer-tag* the-key tstamp)
+    (if (> retries max-retries)
+      {:res         :failure
+       :reason      :max-retries
+       :max-retries max-retries
+       :retries     retries}
       (if (already-processed? process-key)
         (do
-          (log/infof "key already processed: %s" process-key)
-          {:res :duplicate})
+          (log/infof "[%s] key already processed: %s" *consumer-tag* process-key)
+          {:res    :ok
+           :reason :duplicate})
         (if (acquire-lock? lock-key tstamp)
           ;; have lock, call the fn and release the lock
           (do
-            (log/infof "got the lock[%s@%s], processing" lock-key tstamp)
+            (log/infof "[%s] got the lock[%s@%s], processing" *consumer-tag* lock-key tstamp)
             (perform-processing-and-release-lock the-fn now tstamp lock-key process-key))
           ;; do not have the lock, see if the old lock expired
-          (let [other-tstamp (Long/parseLong (.get *jedis* lock-key))
-                expired?     (> now other-tstamp)]
-            (log/infof "checking if other lock[%s] is expired now:%s vs lock-tstamp:%s => %s"
+          (let [other-tstamp   (.get *jedis* lock-key)
+                other-exp-time (Long/parseLong other-tstamp)
+                expired?       (> now other-exp-time)]
+            (log/infof "[%s] checking if other lock[%s] is expired now:%s vs lock-tstamp:%s => %s"
+                       *consumer-tag*
                        lock-key now other-tstamp expired?)
             (if expired?
               ;; they timedout, try to get the lock
-              (if (= tstamp (.getSet *jedis* lock-key tstamp))
+              (if (= other-tstamp (.getSet *jedis* lock-key tstamp))
                 (if (already-processed? process-key)
                   (do
-                    (log/infof "got lock, but was already processed by the time we stole the lock.")
+                    (log/infof "[%s] got lock, but was already processed by the time we stole the lock." *consumer-tag*)
                     (.del *jedis* (into-array String [lock-key]))
-                    {:res :duplicate
-                     :note :after-stealing-lock})
+                    {:res    :ok
+                     :reason :duplicate
+                     :note   :after-stealing-lock})
                   (do
-                    (log/infof "acquired the expired lock %s@%s" lock-key tstamp)
+                    (log/infof "[%s] acquired the expired lock %s@%s" *consumer-tag* lock-key tstamp)
                     (perform-processing-and-release-lock the-fn now tstamp lock-key process-key)))
                 ;; someone else got the lock, sleep and retry
-                (let [sleep-time (- other-tstamp now)]
-                  (log/infof "could not steal lock[%s], will retry after:%s" lock-key sleep-time)
+                (let [sleep-time (- other-exp-time now)]
+                  (log/infof "[%s] could not steal lock[%s], will retry after:%s" *consumer-tag* lock-key sleep-time)
                   (Thread/sleep 1000)
                   (recur spec the-fn)))
               ;; they still hold the lock, sleep and retry
-              (let [sleep-time (- other-tstamp now)]
-                (log/infof "another process holds the lock[%s], will retry after:%s" lock-key sleep-time)
+              (let [sleep-time (- other-exp-time now)]
+                (log/infof "[%s] another process holds the lock[%s], will retry after:%s" *consumer-tag* lock-key sleep-time)
                 (Thread/sleep 1000)
                 (recur spec the-fn)))))))))
 

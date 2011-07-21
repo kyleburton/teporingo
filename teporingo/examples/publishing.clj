@@ -67,7 +67,7 @@
   (pub/broker-enabled? :local-rabbit-cluster)
 
   (time
-   (dotimes [ii 100]
+   (dotimes [ii 10]
      (try
       (pub/publish
        *publisher*

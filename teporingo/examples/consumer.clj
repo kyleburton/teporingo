@@ -30,8 +30,11 @@
 
 (defn handle-amqp-delivery []
   (try
-   (log/infof "CONSUMER: got a delivery")
-   (log/infof "CONSUMER: [%s/%s|%s] msg-id[%s]:%s body='%s'" *consumer-tag* (.getRoutingKey *envelope*) (.getDeliveryTag *envelope*) *message-timestamp* *message-id* *body*)
+   (log/infof "CONSUMER[%s]: got a delivery" *consumer-tag*)
+   (let [val (int (* 3000 (.nextDouble (java.util.Random.))))]
+     (log/infof "CONSUMER[%s]: simulating 'work' for %sms" *consumer-tag* val)
+     (Thread/sleep val))
+   (log/infof "CONSUMER[%s]: [%s|%s] msg-id[%s]:%s body='%s'" *consumer-tag* (.getRoutingKey *envelope*) (.getDeliveryTag *envelope*) *message-timestamp* *message-id* *body*)
    (catch Exception ex
      (log/errorf ex "Consumer Error: %s" ex))))
 
@@ -42,7 +45,8 @@
  *amqp01-config*
  {:delivery
   (teporingo.redis/make-deduping-delivery-fn
-   {:redis-instance :local}
+   {:redis-instance :local
+    :timeout 1000}
    :foof
    handle-amqp-delivery)})
 
@@ -52,7 +56,8 @@
  *amqp02-config*
   {:delivery
   (teporingo.redis/make-deduping-delivery-fn
-   {:redis-instance :local}
+   {:redis-instance :local
+    :timeout 1000}
    :foof
    handle-amqp-delivery)})
 
