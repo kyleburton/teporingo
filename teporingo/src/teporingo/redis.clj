@@ -5,6 +5,7 @@
   (require
    [clj-etl-utils.log :as log])
   (:use
+   [teporingo.core :only [*message-id*]]
    [clj-etl-utils.lang-utils :only [raise aprog1]]))
 
 (defonce *jedis-pools* (atom {}))
@@ -20,7 +21,6 @@
                              (JedisPoolConfig.)
                              (:host configuration)
                              (:port configuration))})))
-
 
 (defn get-redis-pool [name]
   (get @*jedis-pools* name))
@@ -60,8 +60,8 @@
 
 (defn with-jedis-dedupe* [spec the-fn]
   (let [the-key     (:key spec)
-        process-key (str the-key ".processed")
-        lock-key    (str the-key ".lock")
+        process-key (str "tep." the-key ".processed")
+        lock-key    (str "tep." the-key ".lock")
         now         (.getTimeInMillis (java.util.Calendar/getInstance))
         timeout     (:timeout spec *lock-timeout*)
         tstamp      (str (+ now timeout 1000))
@@ -109,6 +109,12 @@
 
 (defmacro with-jedis-dedupe [spec & body]
   `(with-jedis-dedupe* ~spec (fn [] ~@body)))
+
+(defn make-deduping-delivery-fn [spec key-namespace handler-fn]
+  (fn []
+    (with-jedis (:redis-instance spec)
+      (with-jedis-dedupe (assoc spec :key (str key-namespace "." *message-id*))
+        (handler-fn)))))
 
 (comment
   (register-redis-pool :localhost)

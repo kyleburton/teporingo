@@ -1,5 +1,6 @@
 (ns consumer
   (:require
+   teporingo.redis
    [clj-etl-utils.log :as log])
   (:use
    teporingo.client
@@ -34,16 +35,27 @@
    (catch Exception ex
      (log/errorf ex "Consumer Error: %s" ex))))
 
+(teporingo.redis/register-redis-pool :local)
+
 (register-consumer
  :foof01
  *amqp01-config*
- {:delivery handle-amqp-delivery})
+ {:delivery
+  (teporingo.redis/make-deduping-delivery-fn
+   {:redis-instance :local}
+   :foof
+   handle-amqp-delivery)})
 
 
 (register-consumer
  :foof02
  *amqp02-config*
- {:delivery handle-amqp-delivery})
+  {:delivery
+  (teporingo.redis/make-deduping-delivery-fn
+   {:redis-instance :local}
+   :foof
+   handle-amqp-delivery)})
+
 
 (comment
 

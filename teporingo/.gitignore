@@ -6,3 +6,4 @@ pom.xml
 README.textile.html
 .lein-failures
 docs/uberdoc.html
+checkouts/

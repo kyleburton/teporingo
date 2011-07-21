@@ -9,7 +9,7 @@
                      [lein-margauto "1.0.0"]]
   :dev-resources-path "dev-resources"
   :local-repo-classpath true
-  :java-source-path [["java"]]
+  :java-source-path ["java"]
   :dependencies [[org.clojure/clojure "1.2.1"]
                  [org.clojure/clojure-contrib "1.2.0"]
                  [log4j/log4j "1.2.14"]
