@@ -2,22 +2,24 @@
   (:import
    [redis.clients.jedis
     Jedis JedisPool JedisPoolConfig])
+  (require
+   [clj-etl-utils.log :as log])
   (:use
-   [clj-etl-utils.lang-utils :only [raise]]))
+   [clj-etl-utils.lang-utils :only [raise aprog1]]))
 
-(def *jedis-pools* (atom {}))
+(defonce *jedis-pools* (atom {}))
 
 (defn register-redis-pool
   ([name]
      (register-redis-pool name {:host "localhost" :port 6379}))
   ([name configuration]
-   (swap! *jedis-pools* assoc name
-          {:name          name
-           :configuration configuration
-           :pool          (JedisPool.
-                           (JedisPoolConfig.)
-                           (:host configuration)
-                           (:port configuration))})))
+     (swap! *jedis-pools* assoc name
+            {:name          name
+             :configuration configuration
+             :pool          (JedisPool.
+                             (JedisPoolConfig.)
+                             (:host configuration)
+                             (:port configuration))})))
 
 
 (defn get-redis-pool [name]
@@ -26,32 +28,125 @@
 (def ^{:dynamic true} *jedis* :does-not-exist)
 
 (defn with-jedis* [name the-fn]
-  (let [instance (atom nil)]
+  (let [instance (atom nil)
+        pool     (:pool (get-redis-pool name))]
     (try
-     (reset! instance (.getResource (:pool (get-redis-pool name))))
+     (reset! instance (.getResource pool))
      (binding [*jedis* @instance]
-      (the-fn))
+       (the-fn))
      (finally
       (if-not (nil? @instance)
-       (.returnResource instance))))))
+        (.returnResource pool @instance))))))
 
+(defmacro with-jedis [name & body]
+  `(with-jedis* ~name (fn [] ~@body)))
 
+(def *lock-timeout* (* 10 1000))
+
+(defn- perform-processing-and-release-lock [the-fn now tstamp lock-key process-key]
+  (aprog1
+      ;; NB: added in try/catch exception handling - release the lock in the finally block
+      {:res :processed :val (the-fn)}
+    (log/infof "adding processed key [%s@%s] and releasing lock %s@%s"
+               process-key tstamp lock-key tstamp)
+    (.zadd *jedis* "teporingo.keys.processed" (double now) process-key)
+    (.del *jedis* (into-array String [lock-key]))))
+
+(defn- acquire-lock? [lock-key tstamp]
+  (= 1 (.setnx *jedis* lock-key tstamp)))
+
+(defn- already-processed? [process-key]
+  (.zscore *jedis* "teporingo.keys.processed" process-key))
+
+(defn with-jedis-dedupe* [spec the-fn]
+  (let [the-key     (:key spec)
+        process-key (str the-key ".processed")
+        lock-key    (str the-key ".lock")
+        now         (.getTimeInMillis (java.util.Calendar/getInstance))
+        timeout     (:timeout spec *lock-timeout*)
+        tstamp      (str (+ now timeout 1000))
+        retries     (:retries spec 0)]
+    (log/infof "enter lock guard: %s@%s" the-key tstamp)
+    (if (> retries 3)
+      {:res     :max-retries
+       :retries retries}
+      (if (already-processed? process-key)
+        (do
+          (log/infof "key already processed: %s" process-key)
+          {:res :duplicate})
+        (if (acquire-lock? lock-key tstamp)
+          ;; have lock, call the fn and release the lock
+          (do
+            (log/infof "got the lock[%s@%s], processing" lock-key tstamp)
+            (perform-processing-and-release-lock the-fn now tstamp lock-key process-key))
+          ;; do not have the lock, see if the old lock expired
+          (let [other-tstamp (Long/parseLong (.get *jedis* lock-key))
+                expired?     (> now other-tstamp)]
+            (log/infof "checking if other lock[%s] is expired now:%s vs lock-tstamp:%s => %s"
+                       lock-key now other-tstamp expired?)
+            (if expired?
+              ;; they timedout, try to get the lock
+              (if (= tstamp (.getSet *jedis* lock-key tstamp))
+                (if (already-processed? process-key)
+                  (do
+                    (log/infof "got lock, but was already processed by the time we stole the lock.")
+                    (.del *jedis* (into-array String [lock-key]))
+                    {:res :duplicate
+                     :note :after-stealing-lock})
+                  (do
+                    (log/infof "acquired the expired lock %s@%s" lock-key tstamp)
+                    (perform-processing-and-release-lock the-fn now tstamp lock-key process-key)))
+                ;; someone else got the lock, sleep and retry
+                (let [sleep-time (- other-tstamp now)]
+                  (log/infof "could not steal lock[%s], will retry after:%s" lock-key sleep-time)
+                  (Thread/sleep 1000)
+                  (recur spec the-fn)))
+              ;; they still hold the lock, sleep and retry
+              (let [sleep-time (- other-tstamp now)]
+                (log/infof "another process holds the lock[%s], will retry after:%s" lock-key sleep-time)
+                (Thread/sleep 1000)
+                (recur spec the-fn)))))))))
+
+(defmacro with-jedis-dedupe [spec & body]
+  `(with-jedis-dedupe* ~spec (fn [] ~@body)))
 
 (comment
   (register-redis-pool :localhost)
-  (defn ensure-jedis-connection [conn]
-    (if-not @(:jedis conn)
-      (reset! (:jedis conn)
-              (JedisPool.
-               (JedisPoolConfig.)
-               (:host conn)
-               (:port conn)))))
 
-  (ensure-jedis-connection *jedis*)
+  (let [spec {:key "foo" :timeout 5000}]
+   (with-jedis :localhost
+     (with-jedis-dedupe spec
+       (log/infof "we got the foo lock!")
+       (Thread/sleep 10000)
+       (.incr *jedis* (:key spec))
+       (log/infof "finished processing"))))
 
-  (.set @(:jedis *jedis*) "foo" "bar")
-  (.get @(:jedis *jedis*) "foo")
-  (.del @(:jedis *jedis*) (into-array String ["foo"]))
+  (with-jedis :localhost
+    (.get *jedis* "foo"))
+
+  (with-jedis :localhost
+    (.zadd *jedis* "foo" (double 234) "1234"))
+
+  (with-jedis :localhost
+    (.zscore *jedis* "teporingo.keys.processed" "foo"))
+
+  (with-jedis :localhost
+    (.zrange *jedis* "teporingo.keys.processed" 0 -1))
+
+  (with-jedis :localhost
+    (.zscore *jedis* "teporingo.keys.processed" "foo.processed"))
+
+  (with-jedis :localhost
+    (.get *jedis* "teporingo.keys.processed"))
+
+  (with-jedis :localhost
+    (.del *jedis* (into-array String ["foo"])))
+
+  (with-jedis :localhost
+    (.del *jedis*
+          (into-array String
+                      (vec (with-jedis :localhost
+                             (.keys *jedis* "*"))))))
 
   ;; see: http://redis.io/commands/setnx
   (.getSet *jedis* "foo" "first")

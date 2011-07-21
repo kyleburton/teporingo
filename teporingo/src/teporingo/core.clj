@@ -14,6 +14,7 @@
     Envelope
     AMQP$BasicProperties
     ShutdownSignalException]
+   [java.util UUID]
    [com.github.kyleburton.teporingo BreakerOpenException])
   (:require
    [clj-etl-utils.log :as log]
@@ -260,11 +261,48 @@
 
 (def *teporingo-magic* (str "\0\0" "TEP"))
 
+(def *base-62-alphabet* "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+(defn num->string [num alphabet]
+  (if (zero? num)
+    (str (first alphabet))
+    (loop [res ""
+           num num
+           alen (count alphabet)
+           i (long (/ num alen))
+           r (mod  num alen)]
+      (if (zero? num)
+        res
+        (recur (str (nth alphabet r) res)
+               i
+               alen
+               (long (/ i alen))
+               (mod i alen))))))
+
+(comment
+
+  (num->string 79912342343413 *base-62-alphabet*)
+
+  )
+
+
+(defn compact-uuid [uuid]
+  (str
+   (num->string (Math/abs (.getMostSignificantBits uuid)) *base-62-alphabet*)
+   "-"
+   (num->string (Math/abs (.getLeastSignificantBits uuid)) *base-62-alphabet*)))
+
+(defn random-compact-uuid []
+  (compact-uuid (UUID/randomUUID)))
+
+
+;; (count (random-compact-uuid))
+
 (defn wrap-body-with-msg-id [^String body]
   (str
    *teporingo-magic*
    "\0"
-   (java.util.UUID/randomUUID)
+   (random-compact-uuid)
    "\0"
    (.getTime (java.util.Date.))
    "\0"
@@ -274,7 +312,13 @@
   (let [body (String. bytes)]
     (if (.startsWith body *teporingo-magic*)
       ;; split into: magic|msg-id|tstamp|wrapped-body
-      (vec (.split (.substring body (.length *teporingo-magic*))
+      (vec (.split (.substring body (inc (.length *teporingo-magic*)))
                    "\0"
                    3))
-      [nil nil nil body])))
+      [nil nil body])))
+
+(comment
+
+  (split-body-and-msg-id (wrap-body-with-msg-id "foof"))
+
+  )

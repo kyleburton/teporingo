@@ -134,7 +134,7 @@
                                          ^AMQP$BasicProperties properties
                                          ^bytes body]
                          (let [raw-body          body
-                               [teporing-hdr-magic message-id message-timestamp body]
+                               [message-id message-timestamp body]
                                (split-body-and-msg-id (String. raw-body))]
                            (binding [*conn*         conn
                                      *consumer*     this
@@ -256,15 +256,15 @@
          dissoc
          type))
 
-(defn lookup-conumer [type]
-  (let [config (type @consumer-type-registry)]
+(defn lookup-consumer [type]
+  (let [config (get @consumer-type-registry type)]
     (if-not config
       (raise "Error: unregistered consumer type: %s" type))
     config))
 
 
 (defn add-consumer [type]
-  (let [config        (lookup-conumer type)
+  (let [config        (lookup-consumer type)
         conn          (atom (:amqp-credentials  config))
         consumer      (make-consumer type conn (:handler-functions config))]
     (start-consumer! consumer)))
