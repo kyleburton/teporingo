@@ -1,25 +1,33 @@
 h1. Teporingo [1]
 
-Clojure "RabbitMQ":http://www.rabbitmq.com/ Client with a focus on HA Configurations.
+Clojure "RabbitMQ":http://www.rabbitmq.com/ client with a focus on HA Configurations.
 
 See "teporingo/README.textile":/kyleburton/teporingo/tree/master/rabbit-client/
+for a more detailed description of the publisher and consumer APIs.
+
+This project takes much inspiration from, and was heavily influenced by, "Beetle":http://xing.github.com/beetle/, a HA solution for Ruby and RabbitMQ.
 
 [1] http://en.wikipedia.org/wiki/Volcano_Rabbit
 
-
 h1. Features
 
-Default configuration is for exchagnes, queues and bindings to be durable.
+Default configuration is for exchanges, queues and bindings to be durable.
 
 h3. Publishing
 
-Publishers are a list of broker configurations.  Publishers are registered to logical names.  Publishing is performed to all the brokers in the configuration.  At least 1 broker must be publised to or the client library throws an exception.
+Publishers are a list of broker configurations.  Publishers are registered with logical names.  Publishing is performed to all the brokers in the configuration.  At least 1 broker must be published to or the client library will fail, throwing an exception.  This ensures reliable message publishing.
+
+Publish connections that encounter transient errors, a timeout or a broker failure, are passed off to an agent in order to be reconnected asynchronously from the code that is utilizing the publisher.  In cases where a broker fails, this allows application code to continue publishing to the remaining brokers.  When the connection is re-established, the publisher will begin using the connection again.  The goal is to provide redundancy for message delivery as well as robustness (recovery) in the event a broker goes off line and comes back on-line.
 
 h3. Consuming
 
-Consumers are registered as a logical name.  A consumer is an amqp endpoint configuration (vhost, exchagne, queue, bindings).  Consumers can be started / stopped by requesting to 'add-consumer' of a given registered name.
+Consumers are registered as with a logical name.  A consumer is an amqp endpoint configuration (vhost, exchange, queue, bindings) plus event handler functions that follow the RabbitMQ Java Consumer interface.  Consumers can be started / stopped by invoking 'add-consumer' with a given registered name.  This allows pools of consumers to be grown or shrunk interactively.
 
-Consumers will automatically attempt to reconnect if they are shut down unexpectedly.  This will occurr (default is 250ms) until a conneciton can be re-established or until they are explicitly shut down.
+By default, consumers attempt to reconnect if they are shut down unexpectedly.  Reconnect attempts will occur (default is 250ms) until the connection can be re-established or until they are explicitly shut down.
 
 
-h1. Licnese
+h1. License
+
+Copyright (&copy;) 2011 Kyle R. Burton <kyle.burton@gmail.com>
+
+Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
