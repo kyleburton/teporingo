@@ -61,6 +61,9 @@
    :foof
    handle-amqp-delivery)})
 
+(add-consumer :foof01)
+(add-consumer :foof02)
+
 (comment
 
   (add-consumer :foof01)

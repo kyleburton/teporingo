@@ -9,8 +9,6 @@ This project takes much inspiration from, and was heavily influenced by, "Beetle
 
 [1] http://en.wikipedia.org/wiki/Volcano_Rabbit
 
-h1. Features
-
 Default configuration is for exchanges, queues and bindings to be durable.
 
 h3. Publishing
@@ -25,9 +23,52 @@ Consumers are registered as with a logical name.  A consumer is an amqp endpoint
 
 By default, consumers attempt to reconnect if they are shut down unexpectedly.  Reconnect attempts will occur (default is 250ms) until the connection can be re-established or until they are explicitly shut down.
 
+h1. Getting Started
+
+To run the example code, you'll need to run a few services: RabbitMQ, Redis and HA Proxy.  Each of these can be executed in a seperate terminal with a Rake task from the project's root directory.
+
+Clone the git repo:
+
+   git clone git@github.com:kyleburton/teporingo.git
+
+Execute each of the following in a separate terminal:
+
+HA Proxy:
+
+    rake teporingo:haproxy:run
+
+The First RabbitMQ Broker:
+
+    rake teporingo:rabbit:start_rabbit01
+
+The Second RabbitMQ Broker:
+
+    rake teporingo:rabbit:start_rabbit02
+
+A Redis Master Server:
+
+    rake teporingo:redis:master:run
+
+
+Each of these will download and build the required services.  Once these services are running you can start the consumers and then the publisher.
+
+To run the consumers:
+
+  rake teporingo:examples:consumer
+
+For the publisher:
+
+  rake teporingo:examples:publisher
+
+With this executing you should see the publisher publishing message and the consumers processing (and deduplicating messages).  At any time you can kill one of the RabbitMQ brokers (with a CTRL-C, followed by an 'a'), publishing should continue unabated, and one of the consumers should continue to process messages.  The other consumer will continually attempt to re-establish a connection to the failed broker until you bring it back up.
+
+Bring the aborted broker back on-line and you should see the publisher and failed consumer recover and begin processing again.
 
 h1. License
 
 Copyright (&copy;) 2011 Kyle R. Burton <kyle.burton@gmail.com>
 
 Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+
+
+

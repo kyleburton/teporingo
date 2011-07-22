@@ -26,10 +26,34 @@ namespace :teporingo do
   task :swank, :port do |t,args|
     port = args[:port] || '4005'
     Dir.chdir("teporingo") do |p|
-      system "lein", "deps"
-      system "lein", "swank", port
+      unless system "lein", "deps"
+        raise "Error running 'lein deps'"
+      end
+      unless system "lein", "swank", port
+        raise "Error running 'lein swank'"
+      end
     end
   end
 
+  namespace :example do
+    desc "Run example consumers"
+    task :consumer do
+      Dir.chdir("teporingo") do |p|
+        unless system "lein", "exec", "examples/consumer01.clj"
+          raise "Error running example consumers"
+        end
+      end
+    end
+
+    desc "Run example publisher"
+    task :publisher do
+      Dir.chdir("teporingo") do |p|
+        unless system "lein", "exec", "examples/publish-example.clj"
+          raise "Error running example publisher"
+        end
+      end
+    end
+  end
 end
+
 

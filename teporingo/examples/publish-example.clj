@@ -86,3 +86,21 @@
   )
 
 
+
+(time
+ (dotimes [ii 1000]
+  (try
+   (pub/publish
+    *publisher*
+    "/foof"
+    ""
+    true  ;; mandatory
+    false ;; immediate
+    MessageProperties/PERSISTENT_TEXT_PLAIN
+    (str "hello there:" ii)
+    2)
+   (printf "SUCCESS[%s]: Published to at least 1 broker.\n" ii)
+   (catch Exception ex
+    (printf "FAILURE[%s] %s\n" ii ex)
+    (log/warnf ex "FAILURE[%s] %s\n" ii ex)))))
+

@@ -6,7 +6,8 @@
             :comments     "same as Clojure"}
   :description "Teporingo: HA Rabbit Client Library"
   :dev-dependencies [[swank-clojure "1.4.0-SNAPSHOT"]
-                     [lein-margauto "1.0.0"]]
+                     [lein-margauto "1.0.0"]
+                     [lein-exec "0.1"]]
   :dev-resources-path "dev-resources"
   :local-repo-classpath true
   :java-source-path ["java"]
