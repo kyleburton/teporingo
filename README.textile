@@ -29,36 +29,50 @@ To run the example code, you'll need to run a few services: RabbitMQ, Redis and 
 
 Clone the git repo:
 
+<pre>
    git clone git@github.com:kyleburton/teporingo.git
+</pre>
 
 Execute each of the following in a separate terminal:
 
 HA Proxy:
 
+<pre>
     rake teporingo:haproxy:run
+</pre>
 
 The First RabbitMQ Broker:
 
+<pre>
     rake teporingo:rabbit:start_rabbit01
+</pre>
 
 The Second RabbitMQ Broker:
 
+<pre>
     rake teporingo:rabbit:start_rabbit02
+</pre>
 
 A Redis Master Server:
 
+<pre>
     rake teporingo:redis:master:run
+</pre>
 
 
 Each of these will download and build the required services.  Once these services are running you can start the consumers and then the publisher.
 
 To run the consumers:
 
+<pre>
   rake teporingo:examples:consumer
+</pre>
 
 For the publisher:
 
+<pre>
   rake teporingo:examples:publisher
+</pre>
 
 With this executing you should see the publisher publishing message and the consumers processing (and deduplicating messages).  At any time you can kill one of the RabbitMQ brokers (with a CTRL-C, followed by an 'a'), publishing should continue unabated, and one of the consumers should continue to process messages.  The other consumer will continually attempt to re-establish a connection to the failed broker until you bring it back up.
 
