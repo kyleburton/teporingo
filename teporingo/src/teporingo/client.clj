@@ -135,7 +135,7 @@
                                          ^bytes body]
                          (let [raw-body          body
                                [message-id message-timestamp body]
-                               (split-body-and-msg-id (String. raw-body))]
+                               (split-body-and-msg-id raw-body)]
                            (binding [*conn*         conn
                                      *consumer*     this
                                      *consumer-tag* consumer-tag
