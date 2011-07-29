@@ -118,6 +118,8 @@
 
 (defonce breaker-agent (agent {}))
 
+;; (agent-error breaker-agent)
+
 (defn breaker-agent-open-connection [state conn]
   (try
    (close-connection!  conn)
@@ -228,7 +230,8 @@
              :publish
              (make-pub-agent-breaker conn)
              :registered-name registered-name)
-      (send breaker-agent breaker-agent-open-connection conn))
+      ;; Just open it, right now!
+      (breaker-agent-open-connection nil conn))
     publisher))
 
 ;; (agent-error breaker-agent)
