@@ -171,59 +171,74 @@
 
 
 (defn publish
-  [^Map publisher
-   ^String exchange
-   ^String routing-key
-   ^Boolean mandatory
-   ^Boolean immediate
-   ^AMQP$BasicProperties props
-   ^bytes body
-   retries & [errors]]
-  (when (< retries 1)
-    (log/errorf "Error: exceeded max retries for publish %s : %s" publisher
-                (vec errors))
-    (doseq [err errors]
-      (if err
-        (log/errorf err "Max retries due to: %s" err)))
-    (raise (MaxPublishRetriesExceededException.
-            "Error: exceeded max retries for publish."
-            (first errors)
-            (into-array Throwable errors))))
-  ;; try publishing to all brokers, ensure we publish to at least the min required
-  (let [num-published             (atom 0)
-        min-brokers-published-to  (:min-brokers-published-to publisher 1)
-        pub-errs                  (atom [])
-        mandatory                 (if-not (nil? mandatory) mandatory true)
-        immediate                 (if-not (nil? immediate) immediate true)
-        message-props             (or props MessageProperties/PERSISTENT_TEXT_PLAIN)
-        body                      (.getBytes (wrap-body-with-msg-id body))]
-    (log/infof "publish: mandatory:%s immediate:%s" mandatory immediate)
-    (doseq [conn (:connections publisher)]
-      (let [res (publish-1 conn exchange routing-key mandatory immediate props body)]
-        (if (:res res)
-          (swap! num-published inc)
-          (swap! pub-errs conj (:ex res)))))
-    (if (< @num-published min-brokers-published-to)
-      (do
-        (log/debugf "num-published %s was <%s, retrying..." @num-published min-brokers-published-to)
-        (publish publisher
-                 exchange
-                 routing-key
-                 mandatory
-                 immediate
-                 props
-                 body
-                 (dec retries)
-                 (concat errors @pub-errs)))
-      (log/debugf "looks like we published to %s brokers.\n" @num-published))))
+  ([^Map publisher
+    ^String exchange
+    ^String routing-key
+    body
+    num-retries]
+     (publish
+      publisher
+      exchange
+      routing-key
+      true
+      false
+      MessageProperties/PERSISTENT_TEXT_PLAIN
+      body
+      num-retries))
+  ([^Map publisher
+    ^String exchange
+    ^String routing-key
+    ^Boolean mandatory
+    ^Boolean immediate
+    ^AMQP$BasicProperties props
+    ^bytes body
+    retries & [errors]]
+     (when (< retries 1)
+       (log/errorf "Error: exceeded max retries for publish %s : %s" publisher
+                   (vec errors))
+       (doseq [err errors]
+         (if err
+           (log/errorf err "Max retries due to: %s" err)))
+       (raise (MaxPublishRetriesExceededException.
+               "Error: exceeded max retries for publish."
+               (first errors)
+               (into-array Throwable errors))))
+     ;; try publishing to all brokers, ensure we publish to at least the min required
+     (let [num-published             (atom 0)
+           min-brokers-published-to  (:min-brokers-published-to publisher 1)
+           pub-errs                  (atom [])
+           mandatory                 (if-not (nil? mandatory) mandatory true)
+           immediate                 (if-not (nil? immediate) immediate true)
+           message-props             (or props MessageProperties/PERSISTENT_TEXT_PLAIN)
+           body                      (.getBytes (wrap-body-with-msg-id body))]
+       (log/infof "publish: mandatory:%s immediate:%s" mandatory immediate)
+       (doseq [conn (:connections publisher)]
+         (let [res (publish-1 conn exchange routing-key mandatory immediate props body)]
+           (if (:res res)
+             (swap! num-published inc)
+             (swap! pub-errs conj (:ex res)))))
+       (if (< @num-published min-brokers-published-to)
+         (do
+           (log/debugf "num-published %s was <%s, retrying..." @num-published min-brokers-published-to)
+           (publish publisher
+                    exchange
+                    routing-key
+                    mandatory
+                    immediate
+                    props
+                    body
+                    (dec retries)
+                    (concat errors @pub-errs)))
+         (log/debugf "looks like we published to %s brokers.\n" @num-published)))))
+
 
 (defn make-publisher [registered-name]
   (let [config    (get @*broker-registry* registered-name)
         publisher {:connections (vec (map (fn [m] (atom m)) config))}]
     (doseq [conn (:connections publisher)]
       #_(swap! conn
-             assoc
-             :connection-statusq (ArrayBlockingQueue.))
+               assoc
+               :connection-statusq (ArrayBlockingQueue.))
       (swap! conn
              assoc
              :errors []
