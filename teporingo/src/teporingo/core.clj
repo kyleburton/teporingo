@@ -57,6 +57,8 @@
 (def *multiple*     nil)
 (def *active*       nil)
 
+(def *default-message-properties* MessageProperties/PERSISTENT_TEXT_PLAIN)
+
 (declare make-return-listener)
 (declare make-confirm-listener)
 (declare make-flow-listener)
