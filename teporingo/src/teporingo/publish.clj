@@ -38,6 +38,9 @@
 (defn unregister-amqp-broker-cluster [name]
   (swap! *broker-registry* dissoc name))
 
+(defn lookup-broker [name]
+  (get @*broker-registry* name))
+
 (defn ensure-publisher [conn]
   (if (contains? conn :connections)
     (doseq [conn (:connections conn)]
@@ -217,18 +220,20 @@
            (if (:res res)
              (swap! num-published inc)
              (swap! pub-errs conj (:ex res)))))
-       (if (< @num-published min-brokers-published-to)
+       (cond
+         (= 0 @num-published)
+         (do
+           (log/infof "num-published was 0: will try immediate reconnect on all connections! publisher: %s" publisher)
+           (doseq [conn (:connections publisher)]
+             (log/infof "attempting immediate reconnect on: %s" conn)
+             (breaker-agent-open-connection nil conn))
+           (log/infof "completed reconnect, recursing")
+           (publish publisher exchange routing-key mandatory immediate props body (dec retries) (concat errors @pub-errs)))
+         (< @num-published min-brokers-published-to)
          (do
            (log/debugf "num-published %s was <%s, retrying..." @num-published min-brokers-published-to)
-           (publish publisher
-                    exchange
-                    routing-key
-                    mandatory
-                    immediate
-                    props
-                    body
-                    (dec retries)
-                    (concat errors @pub-errs)))
+           (publish publisher exchange routing-key mandatory immediate props body (dec retries) (concat errors @pub-errs)))
+         :else
          (log/debugf "looks like we published to %s brokers.\n" @num-published)))))
 
 
@@ -250,3 +255,10 @@
     publisher))
 
 ;; (agent-error breaker-agent)
+
+(comment
+
+  (:listeners (first (get @*broker-registry* :cai-amqp)))
+
+
+  )
