@@ -1,8 +1,5 @@
 Message De-duplication:
   - De-dupe should be opt-in: if you're only using 1 broker, there is no point
-  - prototype redis connections: use jedis
-  - publish to gen UUID and wrap message body
-  - consumers strip additional envelope, call into redis to lock UUID
 
 De-dupe Key Store / Lock Manager
   - in order to not have unbounded growth in the # of keys
@@ -28,3 +25,20 @@ Configuration:
 AMQP Utilities
 - functions for clearing out: vhsots, exchanges, queues and bindings
 - functions for creating users, removing users, setting permissions?
+
+Consumer Reliability
+- in the case when a message is poision to the consumer, IOW it throws an exception, it 
+  should be pulled from the queue so that processing can continue - this raises the
+  requestion of what should be done with it.  One idea is to route it to a dead letter store,
+  either another exchange/queue, a database, a file-system, etc.  Should this be the responsibility
+  of teporingo?  Or is this up to users to implement their own?
+
+At this time poision messages cause undesireable behavior: they cause a busy
+loop where the client is delivered the message, it fails with an exception and
+the consumer dies.  The message is not acked, so rabbit puts it back on the
+queue.  Teporingo detects that the consumer died and restarts it (for me this
+is desireable behavior to increase the reliability for transient errors).  Then
+the process repeats itself, spinning, using up resources even though the message
+will never actually be processed.
+  
+
