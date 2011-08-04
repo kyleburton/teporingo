@@ -121,6 +121,7 @@
                :factory factory
                :connection connection
                :channel    channel)
+        (log/infof "Listeners: %s" (:listeners @conn))
         (doseq [listener-type [:flow :return :confirm]]
           (if-let [listener (listener-type (:listeners @conn))]
             (attach-listener! conn {:type listener-type :listener listener}))))))
