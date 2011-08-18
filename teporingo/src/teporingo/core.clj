@@ -117,6 +117,12 @@
         (when (:use-transactions @conn)
           (log/infof "setting .txSelect on connection")
           (.txSelect channel))
+        (when-let [qos (:basic-qos @conn)]
+          (log/infof "setting basicQos: %s" qos)
+          (.basicQos channel
+                     (:prefetch-size  qos 0)
+                     (:prefetch-count qos 1)
+                     (:global         qos false)))
         (swap! conn assoc
                :factory factory
                :connection connection
