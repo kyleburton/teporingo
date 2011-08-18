@@ -17,7 +17,7 @@
                  ; [clj-yaml "0.3.0-SNAPSHOT"]
                  [redis.clients/jedis "2.0.0"]
                  [com.rabbitmq/amqp-client "2.5.0"]
-                 [org.clojars.kyleburton/clj-etl-utils "1.0.38-SNAPSHOT"]
+                 [org.clojars.kyleburton/clj-etl-utils "1.0.39"]
                  [com.relaynetwork/clorine "1.0.4"]]
   :autodoc {
     :name "Teporingo"
