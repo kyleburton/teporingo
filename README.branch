@@ -1,7 +1,28 @@
-h1. Branch: Redis Message Deduplication
+h1. Branch: Unify Publisher and Consumer Configurations
 
-Wrap all message bodies during the publish to add a UUID.
+Create a broker registry.
 
-Unwrap (and bind) before handing to the receiver.
+Brokers can be registered with roles.
 
-*raw-body* and *message-id* vs *body*
+Brokers are defined as a host:port, vhost, user/pass (rabbit) and other low
+level connection parameters.
+
+Publishers are a set of brokers (based on a role), publishing configuration
+(message properties, immediate/mandatory flats, retries), marshallers (routing
+key fn, message body serializer fn), and AMQP topology (exchange, queues and
+bindings).
+
+T: todo
+P: In Progress
+D: Done
+
+D: Create Broker Registry
+D: Publisher Registry
+D: Publisher to use broker registry
+T: Publisher to use Pools (clorine)
+T: new publish function that uses pool instance and binding
+T: Update publish example to use new publisher
+T: Update consumer registry to use broker registry
+T: Update consumer example
+T: test basic pub/consume 
+T: test key dedupe vai redis
