@@ -85,4 +85,6 @@ Copyright (&copy;) 2011 Kyle R. Burton <kyle.burton@gmail.com>
 Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 
 
+h1. Changes
 
+Created 1.x branch.
