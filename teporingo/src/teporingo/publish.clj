@@ -14,50 +14,36 @@
     BreakerOpenException MaxPublishRetriesExceededException])
   (:require
    [clj-etl-utils.log :as log]
-   [teporingo.breaker :as breaker])
+   [rn.clorine.pool   :as pool]
+   [teporingo.breaker :as breaker]
+   [teporingo.broker  :as broker])
   (:use
    teporingo.core
    [clj-etl-utils.lang-utils :only [raise]]))
 
-(defonce *broker-registry* (atom {}))
+(defonce *publisher-registry* (atom {}))
 
-(defonce *disabled-brokers* (atom #{}))
+(defn ensure-publisher [publisher]
+  (doseq [broker (:brokers publisher)]
+    (let [conn (:conn broker)]
+      (when (nil? (:channel conn))
+        (ensure-connection! conn)
+        (exchange-declare!  conn (:exchange-name publisher) (:exchange-type publisher) (:exchange-durable publisher))
+        (doseq [queue (:queues publisher)]
+          (queue-declare! conn
+                          (:name      queue)
+                          (:durable    queue)
+                          (:exclusive  queue)
+                          (:autodelete queue)
+                          (:arguments  queue))
+          (doseq [binding (:bindings   queue)]
+            (queue-bind! conn
+                         (:name          queue)
+                         (:exchange-name publisher)
+                         (:routing-key   binding)))))))
+  {:res true :ex nil})
 
-(defn disable-broker [registered-name]
-  (swap! *disabled-brokers* conj registered-name))
-
-(defn enable-broker [registered-name]
-  (swap! *disabled-brokers* disj registered-name))
-
-(defn broker-enabled? [registered-name]
-  (not (contains? @*disabled-brokers* registered-name)))
-
-(defn register-amqp-broker-cluster [name config]
-  (swap! *broker-registry* assoc name config))
-
-(defn unregister-amqp-broker-cluster [name]
-  (swap! *broker-registry* dissoc name))
-
-(defn lookup-broker [name]
-  (get @*broker-registry* name))
-
-(defn ensure-publisher [conn]
-  (if (contains? conn :connections)
-    (doseq [conn (:connections conn)]
-      (ensure-publisher conn))
-    (when (nil? (:channel conn))
-      (ensure-connection! conn)
-      (exchange-declare!  conn)
-      (queue-declare!     conn)
-      (queue-bind!        conn)
-      (swap! conn
-             assoc
-             :message-acks
-             (java.util.concurrent.ConcurrentHashMap.))
-      {:res true :ex nil}))
-  conn)
-
-(defn make-publish-circuit-breaker [opts]
+(defn make-publish-circuit-breaker [conn]
   (breaker/basic-breaker
    (fn [conn exchange routing-key mandatory immediate props body]
      (try
@@ -86,38 +72,7 @@
         (log/errorf ex "Error publishing to %s: %s" @conn ex)
         (close-connection! conn)
         (throw ex))))
-   opts))
-
-
-;; NB: for performance, publish-1's use of ensure-publisher will have
-;; to implement a circuit breaker - the timeout on establishing a
-;; connection takes way too long for this to be a viable approach -
-;; it'll end up creating too much back pressure in the event we've got
-;; 1 or more brokers down.
-
-;; NB: how do we handle when the message goes no where?
-;; it's not a confirmListner, b/c in this event the message is returned
-;; when it's returned it doesn't have a sequenceNo on the message, so
-;; there is no way to coorelate the message we attempted to publish
-;; with the one that was returned
-(defn publish-1
-  [^Atom conn
-   ^String exchange
-   ^String routing-key
-   ^Boolean mandatory
-   ^Boolean immediate
-   ^AMQP$BasicProperties props
-   ^bytes body]
-  (try
-   ((:publish @conn) conn exchange routing-key mandatory immediate props body)
-   {:res true :ex nil}
-   (catch IOException ex
-     (log/errorf ex "Error: conn[%s] initilizing the publisher: %s" @conn ex)
-     (close-connection! conn)
-     {:res false :ex ex})
-   (catch BreakerOpenException ex
-     (log/errorf ex "Error: conn[%s] circuit breaker is open: %s" @conn ex)
-     {:res false :ex ex})))
+   conn))
 
 (defonce breaker-agent (agent {}))
 
@@ -133,7 +88,7 @@
    (swap! conn assoc :closed? false)
    #_(.offer (:connection-statusq @conn) :ok)
    (catch Exception ex
-     (when (broker-enabled? (:registered-name @conn))
+     (when (broker/enabled? (:registered-name @conn))
        (log/warnf ex "Error re-establishing connection, will retry: %s %s" ex @conn)
        (.start
         (Thread.
@@ -145,9 +100,10 @@
            (send-off breaker-agent breaker-agent-open-connection conn)))))))
   state)
 
+
+
+
 (defn make-pub-agent-breaker [conn]
-  #_(if-not (:connection-statusq @conn)
-      (swap! conn assoc :connection-statusq (ArrayBlockingQueue.)))
   (breaker/make-circuit-breaker
    (fn inner-fn [the-conn exchange routing-key mandatory immediate props body]
      (do
@@ -171,6 +127,83 @@
      (log/infof ex "Error triggered: %s" ex)
      (swap! conn assoc :closed? true)
      (send-off breaker-agent breaker-agent-open-connection conn))))
+
+
+
+(def *breaker-strategies* {:basic make-publish-circuit-breaker
+                           :agent make-pub-agent-breaker})
+
+(defn make-publisher [publisher-name publisher-config]
+  (let [brokers (broker/find-by-roles (:broker-roles publisher-config))
+        publish-strategy (get *breaker-strategies* (:breaker-type publisher-config) :basic)
+        publisher
+        {:name              publisher-name
+         :publisher-config  publisher-config
+         :brokers           (vec
+                             (map
+                              (fn [b]
+                                (let [conn (atom {})]
+                                  (swap! conn assoc :publish
+                                         (publish-strategy conn))
+                                  (assoc b :conn conn)))
+                                  brokers))}]
+    (ensure-publisher publisher)
+    publisher))
+
+(defn register [publisher-name publisher-config]
+  (swap! *publisher-registry* assoc publisher-name publisher-config)
+  (pool/register-pool
+   publisher-name
+   (pool/make-factory
+    {:make-fn (fn [pool-impl]
+                (make-publisher publisher-name))})))
+
+(defn unregister [name]
+  (swap! *publisher-registry* dissoc name))
+
+(defn lookup [name]
+  (get @*publisher-registry* name))
+
+(defn with-publisher* [name f]
+  (pool/with-instance [the-publisher name]
+    (binding [publisher the-publisher]
+      (f))))
+
+(defmacro with-publisher [name & body]
+  `(with-publisher* ~name (fn [] ~@body)))
+
+
+
+
+;; ;; NB: for performance, publish-1's use of ensure-publisher will have
+;; ;; to implement a circuit breaker - the timeout on establishing a
+;; ;; connection takes way too long for this to be a viable approach -
+;; ;; it'll end up creating too much back pressure in the event we've got
+;; ;; 1 or more brokers down.
+
+;; ;; NB: how do we handle when the message goes no where?
+;; ;; it's not a confirmListner, b/c in this event the message is returned
+;; ;; when it's returned it doesn't have a sequenceNo on the message, so
+;; ;; there is no way to coorelate the message we attempted to publish
+;; ;; with the one that was returned
+(defn publish-1
+  [^Atom conn
+   ^String exchange
+   ^String routing-key
+   ^Boolean mandatory
+   ^Boolean immediate
+   ^AMQP$BasicProperties props
+   ^bytes body]
+  (try
+   ((:publish @conn) conn exchange routing-key mandatory immediate props body)
+   {:res true :ex nil}
+   (catch IOException ex
+     (log/errorf ex "Error: conn[%s] initilizing the publisher: %s" @conn ex)
+     (close-connection! conn)
+     {:res false :ex ex})
+   (catch BreakerOpenException ex
+     (log/errorf ex "Error: conn[%s] circuit breaker is open: %s" @conn ex)
+     {:res false :ex ex})))
 
 
 (defn publish
@@ -215,7 +248,7 @@
            message-props             (or props MessageProperties/PERSISTENT_TEXT_PLAIN)
            body                      (.getBytes (wrap-body-with-msg-id body))]
        (log/infof "publish: mandatory:%s immediate:%s" mandatory immediate)
-       (doseq [conn (:connections publisher)]
+       (doseq [conn (:brokers publisher)]
          (let [res (publish-1 conn exchange routing-key mandatory immediate props body)]
            (if (:res res)
              (swap! num-published inc)
@@ -224,7 +257,7 @@
          (= 0 @num-published)
          (do
            (log/infof "num-published was 0: will try immediate reconnect on all connections! publisher: %s" publisher)
-           (doseq [conn (:connections publisher)]
+           (doseq [conn (:brokers publisher)]
              (log/infof "attempting immediate reconnect on: %s" conn)
              (breaker-agent-open-connection nil conn))
            (log/infof "completed reconnect, recursing")
@@ -237,28 +270,3 @@
          (log/debugf "looks like we published to %s brokers.\n" @num-published)))))
 
 
-(defn make-publisher [registered-name]
-  (let [config    (get @*broker-registry* registered-name)
-        publisher {:connections (vec (map (fn [m] (atom m)) config))}]
-    (doseq [conn (:connections publisher)]
-      #_(swap! conn
-               assoc
-               :connection-statusq (ArrayBlockingQueue.))
-      (swap! conn
-             assoc
-             :errors []
-             :publish
-             (make-pub-agent-breaker conn)
-             :registered-name registered-name)
-      ;; Just open it, right now!
-      (breaker-agent-open-connection nil conn))
-    publisher))
-
-;; (agent-error breaker-agent)
-
-(comment
-
-  (:listeners (first (get @*broker-registry* :cai-amqp)))
-
-
-  )
