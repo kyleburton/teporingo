@@ -7,59 +7,44 @@
    [teporingo.core           :only [*body* *consumer-tag* *envelope* *message-id* *message-timestamp*]]
    [clj-etl-utils.lang-utils :only [raise]]))
 
-(def *amqp01-config*
-     {:port                          25671
-      :vhost                         "/"
-      :exchange-name                 "/foof"
-      :queue-name                    "foofq"
-      :heartbeat-seconds             5
-      :restart-on-connection-closed? true
-      :reconnect-delay-ms            1000
-      :routing-key                   ""
-      :bindings                      [{:routing-key ""}]
-      :ack?                          true})
-
-;; :routing-key ""
-;; :routing-key "#" ;; foo foo.bar foo.bar.qux
-;; :routing-key "client-id.*" ;; client-id.4
-;; :routing-key "client-id.#" ;; client-id.foo.bar
-
-(def *amqp02-config*
-     (assoc *amqp01-config*
-       :port 25672))
+(load-file "examples/broker-config.clj")
 
 (defn handle-amqp-delivery []
   (try
    (log/infof "CONSUMER[%s]: got a delivery" *consumer-tag*)
    #_(let [val (int (* 3000 (.nextDouble (java.util.Random.))))]
-     (log/infof "CONSUMER[%s]: simulating 'work' for %sms" *consumer-tag* val)
-     (Thread/sleep val))
-   (log/infof "CONSUMER[%s]: [%s|%s] msg-id[%s]:%s body='%s'" *consumer-tag* (.getRoutingKey *envelope*) (.getDeliveryTag *envelope*) *message-timestamp* *message-id* *body*)
+       (log/infof "CONSUMER[%s]: simulating 'work' for %sms" *consumer-tag* val)
+       (Thread/sleep val))
+   (log/infof "CONSUMER[%s]: [%s|%s] msg-id[%s]:%s body='%s'" *consumer-tag* (.getRoutingKey *envelope*) (.getDeliveryTag *envelope*) *message-timestamp* *message-id* *body*nn)
    (catch Exception ex
      (log/errorf ex "Consumer Error: %s" ex))))
 
 (teporingo.redis/register-redis-pool :local)
 
-(register-consumer
- :foof01
- *amqp01-config*
- {:delivery
-  (teporingo.redis/make-deduping-delivery-fn
-   {:redis-instance :local
-    :timeout 1000}
-   :foof
-   handle-amqp-delivery)})
+(def *consumer-config*
+     {:exchange-name                 "/foof"
+      :queue-name                    "foofq"
+      :restart-on-connection-closed? true
+      :reconnect-delay-ms            1000
+      :ack?                          true
+      :bindings                      [{:routing-key ""}]
+      :handlers
+      {:delivery
+       (teporingo.redis/make-deduping-delivery-fn
+        {:redis-instance :local
+         :timeout 1000}
+        :foof
+        handle-amqp-delivery)}})
 
+(register-consumer
+ :foof01 ;; consumer name
+ :amqp01 ;; registered broker name
+ *consumer-config*)
 
 (register-consumer
- :foof02
- *amqp02-config*
-  {:delivery
-  (teporingo.redis/make-deduping-delivery-fn
-   {:redis-instance :local
-    :timeout 1000}
-   :foof
-   handle-amqp-delivery)})
+ :foof02 ;; consumer name
+ :amqp02 ;; registered broker name
+ *consumer-config*)
 
 (comment
 
@@ -70,13 +55,13 @@
   (stop-all :foof02)
   (stop-all)
 
-  (consumer-type-enabled? :foof01)
-  (consumer-type-enabled? :foof02)
-  (disable-consumer-type :foof01)
-  (enable-consumer-type  :foof01)
+  (enabled? :foof01)
+  (enabled? :foof02)
+  (disable :foof01)
+  (enable  :foof01)
 
 
-  consumer-type-registry
+  consumer-registry
 
   active-consumers
 

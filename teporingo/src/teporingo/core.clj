@@ -57,6 +57,7 @@
 (def *multiple*     nil)
 (def *active*       nil)
 (def publisher      nil)
+(def publish        nil)
 
 (def *default-message-properties* MessageProperties/PERSISTENT_TEXT_PLAIN)
 
@@ -97,6 +98,7 @@
 
 
 (defn ensure-connection! [conn]
+  (def *core-bar* conn)
   (if (contains? conn :connections)
     (doseq [conn (:connections conn)]
       (ensure-connection! conn))
@@ -201,7 +203,6 @@
 
 (defn make-return-listener [conn handle-return-fn]
   (log/infof "make-return-listener: conn=%s" conn)
-  (def *foo* conn)
   {:conn     conn
    :type     :return-listener
    :listener
@@ -311,15 +312,19 @@
 
 ;; (count (random-compact-uuid))
 
-(defn wrap-body-with-msg-id [^String body]
-  (str
-   *teporingo-magic*
-   "\0"
-   (random-compact-uuid)
-   "\0"
-   (.getTime (java.util.Date.))
-   "\0"
-   body))
+;; nb: body is a byte array
+(defn wrap-body-with-msg-id [body]
+  (let [pfx (.getBytes (str
+                        *teporingo-magic*
+                        "\0"
+                        (random-compact-uuid)
+                        "\0"
+                        (.getTime (java.util.Date.))
+                        "\0"))
+        new-body (java.util.Arrays/copyOf pfx (+ (count pfx) (count body)))]
+    (System/arraycopy body 0 new-body (count pfx)
+                      (count body))
+    new-body))
 
 (defn split-body-and-msg-id [bytes]
   (let [body (String. bytes)]
@@ -331,6 +336,8 @@
       [nil nil body])))
 
 (comment
+
+  (split-body-and-msg-id (wrap-body-with-msg-id (.getBytes "foof")))
 
   (split-body-and-msg-id (wrap-body-with-msg-id "foof"))
 

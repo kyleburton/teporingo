@@ -19,7 +19,8 @@
     AMQP$BasicProperties
     ShutdownSignalException])
   (:require
-   [clj-etl-utils.log :as log])
+   [clj-etl-utils.log :as log]
+   [teporingo.broker  :as broker])
   (:use
    teporingo.core
    [clj-etl-utils.lang-utils :only [raise]]))
@@ -27,19 +28,19 @@
 ;; Flag to allow consuemrs of a specific type to be disabled - no more
 ;; will be able to be started.  Types can be temporarily disabled
 ;; without having to be removed from the registry.
-(defonce *disabled-consumers-by-type* (atom #{}))
+(defonce *disabled-consumers-by-name* (atom #{}))
 
 ;; Disable a consumer of a specific type.
-(defn disable-consumer-type [type]
-  (swap! *disabled-consumers-by-type* conj type))
+(defn disable [consumer-name]
+  (swap! *disabled-consumers-by-name* conj consumer-name))
 
-;; Enable a consumer of a specific type.
-(defn enable-consumer-type [type]
-  (swap! *disabled-consumers-by-type* disj type))
+;; Enable a consumer of a specific name.
+(defn enable [consumer-name]
+  (swap! *disabled-consumers-by-name* disj consumer-name))
 
-;; Test if a consumer type is enabled.
-(defn consumer-type-enabled? [type]
-  (not (contains? @*disabled-consumers-by-type* type)))
+;; Test if a consumer name is enabled.
+(defn enabled? [consumer-name]
+  (not (contains? @*disabled-consumers-by-name* consumer-name)))
 
 ;; Acknowledge a message to the channel.  This will notify the AMQP
 ;; Broker to mark the message as delivered and handled so that it will
@@ -62,7 +63,7 @@
 
 ;; Create, but do not start, an AMQP consumer.
 ;;
-;; `type` must be a registered consumer type.  See `register-consumer`.
+;; `consumer-name` must be a registered consumer name.  See `register-consumer`.
 ;;
 ;; `conn` must be an atom containing a map to hold the connection and
 ;; configuration for the connection.
@@ -88,7 +89,7 @@
    (catch NumberFormatException ex
      0)))
 
-(defn make-consumer [type conn handlers]
+(defn make-consumer [consumer-name conn handlers]
   (if-not (:delivery handlers)
     (raise "Error: can not create a consumer without a :delivery handler specified; passed: %s"
            (vec (keys handlers))))
@@ -105,7 +106,7 @@
          recover :recover
          shutdown :shutdown} handlers
         the-consumer (atom     {:conn            conn
-                                :registered-type type
+                                :registered-name consumer-name
                                 :type            :consumer
                                 :listener        nil})
         consumer (reify
@@ -123,7 +124,7 @@
                            (swap! conn assoc :consumer-tag consumer-tag)
                            (swap! active-consumers
                                   update-in
-                                  [type]
+                                  [consumer-name]
                                   assoc
                                   consumer-tag
                                   @the-consumer)
@@ -156,10 +157,10 @@
                                    *consumer-tag* consumer-tag
                                    *sig*          sig]
                            (shutdown)
-                           (log/infof "Consumer[%s/%s] was shut down %s" type consumer-tag sig)
+                           (log/infof "Consumer[%s/%s] was shut down %s" consumer-name consumer-tag sig)
                            (when (:restart-on-connection-closed? @conn)
                              (log/infof "Consumer[%s/%s] will be restarted: conn=%s consumer=%s"
-                                        type consumer-tag @conn @the-consumer)
+                                        consumer-name consumer-tag @conn @the-consumer)
                              (start-consumer! @the-consumer consumer-tag))))
                   (^void handleRecoverOk [^Consumer this]
                          (binding [*conn*         conn
@@ -195,18 +196,18 @@
 (defn agent-start-consumer!
   ([state consumer]
      (try
-      (log/debugf "agent-start-consumer! type=%s" (:registered-type consumer))
+      (log/debugf "agent-start-consumer! name=%s" (:registered-name consumer))
       (shutdown-consumer-quietly! consumer)
-      (log/debugf "agent-start-consumer! ensured shut down, about to start.  Type=%s"
-                  (:registered-type consumer))
+      (log/debugf "agent-start-consumer! ensured shut down, about to start.  name=%s"
+                  (:registered-name consumer))
       (let [conn               (:conn           consumer)]
         (ensure-connection! conn)
         (exchange-declare!  conn)
         (queue-declare!     conn)
         (queue-bind!        conn)
         (attach-listener!   conn consumer))
-      (log/debugf "agent-start-consumer! swapping active-consumers for type=%s"
-                  (:registered-type consumer))
+      (log/debugf "agent-start-consumer! swapping active-consumers for name=%s"
+                  (:registered-name consumer))
       (catch Exception ex
         (let [conn               (:conn           consumer)
               reconnect-delay-ms (:reconnect-delay-ms @conn 250)]
@@ -217,8 +218,8 @@
             (start-consumer! consumer)))))
      state)
   ([state consumer consumer-tag]
-     (log/debugf "agent-start-consumer! type:%s tag:%s" (:registered-type consumer) consumer-tag)
-     (stop-consumer-with-tag (:registered-type consumer) consumer-tag)
+     (log/debugf "agent-start-consumer! name:%s tag:%s" (:registered-name consumer) consumer-tag)
+     (stop-consumer-with-tag (:registered-name consumer) consumer-tag)
      (start-consumer! consumer)
      state))
 
@@ -226,82 +227,86 @@
   ([consumer]
      (log/infof "consumer: %s" consumer)
      (if (and
-          (consumer-type-enabled? (:registered-type consumer))
+          (enabled? (:registered-name consumer))
           (not (:all-stop @(:conn consumer))))
        (send-off consumer-restart-agent agent-start-consumer! consumer)
-       (log/infof "NOT starting consumer[%s]: consumer-type-enabled?:%s %s"
-                  (:registered-type consumer)
-                  (consumer-type-enabled? (:registered-type consumer))
+       (log/infof "NOT starting consumer[%s]: enabled?:%s %s"
+                  (:registered-name consumer)
+                  (enabled? (:registered-name consumer))
                   consumer))
      consumer)
   ([consumer consumer-tag]
      (if (and
-          (consumer-type-enabled? (:registered-type consumer))
+          (enabled? (:registered-name consumer))
           (not (:all-stop @(:conn consumer))))
        (send-off consumer-restart-agent agent-start-consumer! consumer consumer-tag))
      consumer))
 
-(defonce consumer-type-registry (atom {}))
+(defonce consumer-registry (atom {}))
 
-(defn register-consumer [type amqp-credentials handler-functions]
-  (swap! consumer-type-registry
+(defn register-consumer [consumer-name broker-name consumer-config]
+  (swap! consumer-registry
          assoc
-         type
-         {:registered-type   type
-          :amqp-credentials  amqp-credentials
-          :handler-functions handler-functions}))
+         consumer-name
+         {:registered-name   consumer-name
+          :broker-name       broker-name
+          :consumer-config   consumer-config
+          :handler-functions (:handlers consumer-config)}))
 
-(defn unregister-consumer [type]
-  (swap! consumer-type-registry
+(defn unregister-consumer [consumer-name]
+  (swap! consumer-registry
          dissoc
-         type))
+         consumer-registry))
 
-(defn lookup-consumer [type]
-  (let [config (get @consumer-type-registry type)]
+(defn lookup-consumer [consumer-name]
+  (let [config (get @consumer-registry consumer-name)]
     (if-not config
-      (raise "Error: unregistered consumer type: %s" type))
+      (raise "Error: unregistered consumer name: %s" consumer-name))
     config))
 
 
-(defn add-consumer [type]
-  (let [config        (lookup-consumer type)
-        conn          (atom (:amqp-credentials  config))
-        consumer      (make-consumer type conn (:handler-functions config))]
+(defn add-consumer [consumer-name]
+  (let [config        (lookup-consumer consumer-name)
+        conn          (atom (merge (broker/lookup (:broker-name config))
+                                   (:consumer-config config)))
+        consumer      (make-consumer consumer-name conn (:handler-functions config))]
+    (def *stuff* [conn consumer])
+    ;; (second *stuff*)
     (start-consumer! consumer)))
 
 (defn stop-consumer-with-tag
-  ([type consumer-tag]
-     (log/infof "stop-consumer-with-tag type=%s consumer-tag=%s" type consumer-tag)
+  ([consumer-name consumer-tag]
+     (log/infof "stop-consumer-with-tag name=%s consumer-tag=%s" consumer-name consumer-tag)
      (dosync
-      (let [consumer (get-in @active-consumers [type consumer-tag])]
+      (let [consumer (get-in @active-consumers [consumer-name consumer-tag])]
         (log/infof "start-consumer-wtih-tag: consumer=%s" consumer)
         (shutdown-consumer-quietly! consumer)
         (swap! active-consumers
                update-in
-               [type]
+               [consumer-name]
                dissoc
                consumer-tag))))
-  ([type consumer-tag all-stop]
+  ([consumer-name consumer-tag all-stop]
      (dosync
-      (let [consumer (get-in @active-consumers [type consumer-tag])]
+      (let [consumer (get-in @active-consumers [consumer-name consumer-tag])]
         (swap! (:conn consumer) assoc :all-stop all-stop)))
-     (stop-consumer-with-tag type consumer-tag)))
+     (stop-consumer-with-tag consumer-name consumer-tag)))
 
-(defn stop-one [type]
+(defn stop-one [consumer-name]
   (dosync
-   (let [consumers (type @active-consumers)
+   (let [consumers (consumer-name @active-consumers)
          tag1      (ffirst consumers)]
      (if-not (nil? tag1)
-       (stop-consumer-with-tag type tag1 true))))
-  (count (type @active-consumers)))
+       (stop-consumer-with-tag consumer-name tag1 true))))
+  (count (consumer-name @active-consumers)))
 
 (defn stop-all
   ([]
-     (doseq [type (keys @active-consumers)]
-       (stop-all type)))
-  ([type]
-     (loop [res (stop-one type)]
+     (doseq [consumer-name (keys @active-consumers)]
+       (stop-all consumer-name)))
+  ([consumer-name]
+     (loop [res (stop-one consumer-name)]
        (if (pos? res)
-         (recur (stop-one type))))))
+         (recur (stop-one consumer-name))))))
 
 
