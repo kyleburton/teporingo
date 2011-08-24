@@ -24,23 +24,24 @@
 (defonce *publisher-registry* (atom {}))
 
 (defn ensure-publisher [publisher]
-  (doseq [broker (:brokers publisher)]
-    (let [conn (:conn broker)]
-      (when (nil? (:channel conn))
-        (ensure-connection! conn)
-        (exchange-declare!  conn (:exchange-name publisher) (:exchange-type publisher) (:exchange-durable publisher))
-        (doseq [queue (:queues publisher)]
-          (queue-declare! conn
-                          (:name      queue)
-                          (:durable    queue)
-                          (:exclusive  queue)
-                          (:autodelete queue)
-                          (:arguments  queue))
-          (doseq [binding (:bindings   queue)]
-            (queue-bind! conn
-                         (:name          queue)
-                         (:exchange-name publisher)
-                         (:routing-key   binding)))))))
+  (let [publisher-config (:publisher-config publisher)]
+   (doseq [broker (:brokers publisher)]
+     (let [conn (:conn broker)]
+       (when (nil? (:channel conn))
+         (ensure-connection! conn)
+         (exchange-declare!  conn (:exchange-name publisher-config) (:exchange-type publisher-config) (:exchange-durable publisher-config))
+         (doseq [queue (:queues publisher-config)]
+           (queue-declare! conn
+                           (:name       queue)
+                           (:durable    queue)
+                           (:exclusive  queue)
+                           (:autodelete queue)
+                           (:arguments  queue))
+           (doseq [binding (:bindings   queue)]
+             (queue-bind! conn
+                          (:name          queue)
+                          (:exchange-name publisher-config)
+                          (:routing-key   binding))))))))
   {:res true :ex nil})
 
 (defn make-publish-circuit-breaker [conn]
@@ -86,7 +87,6 @@
    (queue-declare!     conn)
    (queue-bind!        conn)
    (swap! conn assoc :closed? false)
-   #_(.offer (:connection-statusq @conn) :ok)
    (catch Exception ex
      (when (broker/enabled? (:registered-name @conn))
        (log/warnf ex "Error re-establishing connection, will retry: %s %s" ex @conn)
@@ -142,7 +142,7 @@
          :brokers           (vec
                              (map
                               (fn [b]
-                                (let [conn (atom {})]
+                                (let [conn (atom b)]
                                   (swap! conn assoc :publish
                                          (publish-strategy conn))
                                   (assoc b :conn conn)))
@@ -156,7 +156,7 @@
    publisher-name
    (pool/make-factory
     {:make-fn (fn [pool-impl]
-                (make-publisher publisher-name))})))
+                (make-publisher publisher-name publisher-config))})))
 
 (defn unregister [name]
   (swap! *publisher-registry* dissoc name))
@@ -166,13 +166,32 @@
 
 (defn with-publisher* [name f]
   (pool/with-instance [the-publisher name]
-    (binding [publisher the-publisher]
-      (f))))
+    (let [publisher-config (:publisher-config the-publisher)
+          exchange-name  (:exchange-name      publisher-config)
+          rkey           (:routing-key        publisher-config)
+          routing-key-fn (if (fn? rkey)
+                           rkey
+                           (constantly rkey))
+          mandatory-flag     (:mandatory          publisher-config)
+          immediate-flag     (:immediate          publisher-config)
+          message-properties (:message-properties publisher-config)
+          serializer-fn      (:serializer         publisher-config)
+          num-retries        (:num-retries        publisher-config)]
+     (binding [publisher the-publisher
+               publish   (fn [body]
+                           (publish*
+                            the-publisher
+                            exchange-name
+                            (routing-key-fn body)
+                            mandatory-flag
+                            immediate-flag
+                            message-properties
+                            (serializer-fn body)
+                            num-retries))]
+       (f)))))
 
 (defmacro with-publisher [name & body]
   `(with-publisher* ~name (fn [] ~@body)))
-
-
 
 
 ;; ;; NB: for performance, publish-1's use of ensure-publisher will have
@@ -206,7 +225,7 @@
      {:res false :ex ex})))
 
 
-(defn publish
+(defn publish*
   ([^Map publisher
     ^String exchange
     ^String routing-key
@@ -248,8 +267,8 @@
            message-props             (or props MessageProperties/PERSISTENT_TEXT_PLAIN)
            body                      (.getBytes (wrap-body-with-msg-id body))]
        (log/infof "publish: mandatory:%s immediate:%s" mandatory immediate)
-       (doseq [conn (:brokers publisher)]
-         (let [res (publish-1 conn exchange routing-key mandatory immediate props body)]
+       (doseq [broker (:brokers publisher)]
+         (let [res (publish-1 (:conn broker) exchange routing-key mandatory immediate props body)]
            (if (:res res)
              (swap! num-published inc)
              (swap! pub-errs conj (:ex res)))))
@@ -257,9 +276,9 @@
          (= 0 @num-published)
          (do
            (log/infof "num-published was 0: will try immediate reconnect on all connections! publisher: %s" publisher)
-           (doseq [conn (:brokers publisher)]
-             (log/infof "attempting immediate reconnect on: %s" conn)
-             (breaker-agent-open-connection nil conn))
+           (doseq [broker (:brokers publisher)]
+             (log/infof "attempting immediate reconnect on: %s" broker)
+             (breaker-agent-open-connection nil (:conn broker)))
            (log/infof "completed reconnect, recursing")
            (publish publisher exchange routing-key mandatory immediate props body (dec retries) (concat errors @pub-errs)))
          (< @num-published min-brokers-published-to)

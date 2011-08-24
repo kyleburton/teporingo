@@ -57,6 +57,7 @@
 (def *multiple*     nil)
 (def *active*       nil)
 (def publisher      nil)
+(def publish        nil)
 
 (def *default-message-properties* MessageProperties/PERSISTENT_TEXT_PLAIN)
 
@@ -97,6 +98,7 @@
 
 
 (defn ensure-connection! [conn]
+  (def *core-bar* conn)
   (if (contains? conn :connections)
     (doseq [conn (:connections conn)]
       (ensure-connection! conn))
@@ -201,7 +203,6 @@
 
 (defn make-return-listener [conn handle-return-fn]
   (log/infof "make-return-listener: conn=%s" conn)
-  (def *foo* conn)
   {:conn     conn
    :type     :return-listener
    :listener

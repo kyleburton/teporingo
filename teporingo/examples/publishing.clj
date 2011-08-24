@@ -8,7 +8,7 @@
    [teporingo.broker  :as broker]
    [clj-etl-utils.log :as log])
   (:use
-   [teporingo.core           :only [*reply-code* *reply-text* *exchange* *routing-key* *message-properties* *listener* *conn* *props* *body* *active* *confirm-type* *delivery-tag* *multiple* publisher]]
+   [teporingo.core           :only [*reply-code* *reply-text* *exchange* *routing-key* *message-properties* *listener* *conn* *props* *body* *active* *confirm-type* *delivery-tag* *multiple* publisher publish]]
    [clj-etl-utils.lang-utils :only [raise]]))
 
 
@@ -90,7 +90,7 @@
 (comment
   (time
    (pub/with-publisher :wocal_wabbits
-     (dotimes [ii 10]
+     (dotimes [ii 1]
        (try
         (publish (str "hello there:" ii))
         (printf "SUCCESS[%s]: Published to at least 1 broker.\n" ii)
