@@ -7,26 +7,7 @@
    [teporingo.core           :only [*body* *consumer-tag* *envelope* *message-id* *message-timestamp*]]
    [clj-etl-utils.lang-utils :only [raise]]))
 
-(def *amqp01-config*
-     {:port                          25671
-      :vhost                         "/"
-      :exchange-name                 "/foof"
-      :queue-name                    "foofq"
-      :heartbeat-seconds             5
-      :restart-on-connection-closed? true
-      :reconnect-delay-ms            1000
-      :routing-key                   ""
-      :bindings                      [{:routing-key ""}]
-      :ack?                          true})
-
-;; :routing-key ""
-;; :routing-key "#" ;; foo foo.bar foo.bar.qux
-;; :routing-key "client-id.*" ;; client-id.4
-;; :routing-key "client-id.#" ;; client-id.foo.bar
-
-(def *amqp02-config*
-     (assoc *amqp01-config*
-       :port 25672))
+(load-file "examples/broker-config.clj")
 
 (defn handle-amqp-delivery []
   (try

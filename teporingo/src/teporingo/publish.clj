@@ -164,36 +164,6 @@
 (defn lookup [name]
   (get @*publisher-registry* name))
 
-(defn with-publisher* [name f]
-  (pool/with-instance [the-publisher name]
-    (let [publisher-config (:publisher-config the-publisher)
-          exchange-name  (:exchange-name      publisher-config)
-          rkey           (:routing-key        publisher-config)
-          routing-key-fn (if (fn? rkey)
-                           rkey
-                           (constantly rkey))
-          mandatory-flag     (:mandatory          publisher-config)
-          immediate-flag     (:immediate          publisher-config)
-          message-properties (:message-properties publisher-config)
-          serializer-fn      (:serializer         publisher-config)
-          num-retries        (:num-retries        publisher-config)]
-     (binding [publisher the-publisher
-               publish   (fn [body]
-                           (publish*
-                            the-publisher
-                            exchange-name
-                            (routing-key-fn body)
-                            mandatory-flag
-                            immediate-flag
-                            message-properties
-                            (serializer-fn body)
-                            num-retries))]
-       (f)))))
-
-(defmacro with-publisher [name & body]
-  `(with-publisher* ~name (fn [] ~@body)))
-
-
 ;; ;; NB: for performance, publish-1's use of ensure-publisher will have
 ;; ;; to implement a circuit breaker - the timeout on establishing a
 ;; ;; connection takes way too long for this to be a viable approach -
@@ -287,5 +257,35 @@
            (publish publisher exchange routing-key mandatory immediate props body (dec retries) (concat errors @pub-errs)))
          :else
          (log/debugf "looks like we published to %s brokers.\n" @num-published)))))
+
+
+(defn with-publisher* [name f]
+  (pool/with-instance [the-publisher name]
+    (let [publisher-config (:publisher-config the-publisher)
+          exchange-name  (:exchange-name      publisher-config)
+          rkey           (:routing-key        publisher-config)
+          routing-key-fn (if (fn? rkey)
+                           rkey
+                           (constantly rkey))
+          mandatory-flag     (:mandatory          publisher-config)
+          immediate-flag     (:immediate          publisher-config)
+          message-properties (:message-properties publisher-config)
+          serializer-fn      (:serializer         publisher-config)
+          num-retries        (:num-retries        publisher-config)]
+     (binding [publisher the-publisher
+               publish   (fn [body]
+                           (publish*
+                            the-publisher
+                            exchange-name
+                            (routing-key-fn body)
+                            mandatory-flag
+                            immediate-flag
+                            message-properties
+                            (serializer-fn body)
+                            num-retries))]
+       (f)))))
+
+(defmacro with-publisher [name & body]
+  `(with-publisher* ~name (fn [] ~@body)))
 
 
