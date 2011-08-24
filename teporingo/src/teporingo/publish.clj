@@ -235,7 +235,7 @@
            mandatory                 (if-not (nil? mandatory) mandatory true)
            immediate                 (if-not (nil? immediate) immediate true)
            message-props             (or props MessageProperties/PERSISTENT_TEXT_PLAIN)
-           body                      (.getBytes (wrap-body-with-msg-id body))]
+           body                      (wrap-body-with-msg-id body)]
        (log/infof "publish: mandatory:%s immediate:%s" mandatory immediate)
        (doseq [broker (:brokers publisher)]
          (let [res (publish-1 (:conn broker) exchange routing-key mandatory immediate props body)]

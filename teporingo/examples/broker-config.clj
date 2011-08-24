@@ -43,6 +43,7 @@
   ;; :use-confirm        false
   ;; :basic-qos          {:prefetch-size 0 :prefetch-count 1}
   ;; :use-transactions   false
+  ;; :auto-ack           false
   :listeners          {:return  handle-returned-message}})
 
 (broker/register

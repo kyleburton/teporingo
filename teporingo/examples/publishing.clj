@@ -35,7 +35,7 @@
 (comment
   (time
    (pub/with-publisher :wocal_wabbits
-     (dotimes [ii 1]
+     (dotimes [ii 1000]
        (try
         (publish (str "hello there:" ii))
         (printf "SUCCESS[%s]: Published to at least 1 broker.\n" ii)
