@@ -265,14 +265,19 @@
     config))
 
 
-(defn add-consumer [consumer-name]
-  (let [config        (lookup-consumer consumer-name)
-        conn          (atom (merge (broker/lookup (:broker-name config))
-                                   (:consumer-config config)))
-        consumer      (make-consumer consumer-name conn (:handler-functions config))]
-    (def *stuff* [conn consumer])
-    ;; (second *stuff*)
-    (start-consumer! consumer)))
+(defn add-consumer
+  ([consumer-name]
+     (let [config        (lookup-consumer consumer-name)
+           conn          (atom (merge (broker/lookup (:broker-name config))
+                                      (:consumer-config config)))
+           consumer      (make-consumer consumer-name conn (:handler-functions config))]
+       (start-consumer! consumer)))
+  ([consumer-name num-to-start]
+     (dotimes [consumer-num num-to-start]
+       (add-consumer consumer-name))))
+
+(defn active-consumer-count [consumer-name]
+  (count (keys (get @active-consumers consumer-name))))
 
 (defn stop-consumer-with-tag
   ([consumer-name consumer-tag]
@@ -292,21 +297,24 @@
         (swap! (:conn consumer) assoc :all-stop all-stop)))
      (stop-consumer-with-tag consumer-name consumer-tag)))
 
-(defn stop-one [consumer-name]
-  (dosync
-   (let [consumers (consumer-name @active-consumers)
-         tag1      (ffirst consumers)]
-     (if-not (nil? tag1)
-       (stop-consumer-with-tag consumer-name tag1 true))))
-  (count (consumer-name @active-consumers)))
+(defn stop-consumer
+  ([consumer-name count]
+     (dotimes [consumer-num count]
+       (stop-consumer consumer-name)))
+  ([consumer-name]
+     (dosync
+      (let [consumers (consumer-name @active-consumers)
+            tag1      (ffirst consumers)]
+        (if-not (nil? tag1)
+          (stop-consumer-with-tag consumer-name tag1 true))))))
 
 (defn stop-all
   ([]
      (doseq [consumer-name (keys @active-consumers)]
        (stop-all consumer-name)))
   ([consumer-name]
-     (loop [res (stop-one consumer-name)]
-       (if (pos? res)
-         (recur (stop-one consumer-name))))))
+     (loop [res (stop-consumer consumer-name)]
+       (if (pos? (active-consumer-count consumer-name))
+         (recur (stop-consumer consumer-name))))))
 
 

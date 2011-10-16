@@ -68,7 +68,7 @@
 
   (add-consumer :foof01)
   (add-consumer :foof02)
-  (stop-one :foof01)
+  (stop-consumer :foof01)
   (stop-all :foof01)
   (stop-all :foof02)
   (stop-all)

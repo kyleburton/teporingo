@@ -67,25 +67,6 @@
            (fn ~argspec
              ~@body)))))
 
-(comment
-
-  (def stuff (basic-breaker
-              (fn [r]
-                (if (= 1 (.nextInt (java.util.Random.) 3))
-                  (raise "sorry, you loose"))
-                r)))
-
-  (defbreaker :basic stuff2 [r]
-    (if (= 1 (.nextInt (java.util.Random.) 3))
-      (raise "sorry, you loose"))
-    r)
-
-  (stuff2 :a)
-
-  )
-
-
-
 
 (defn make-circuit-breaker [inner-fn open-fn? on-err-fn!]
   (let [state (atom {:open-fn?  open-fn?

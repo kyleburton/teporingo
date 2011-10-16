@@ -15,7 +15,7 @@
    #_(let [val (int (* 3000 (.nextDouble (java.util.Random.))))]
        (log/infof "CONSUMER[%s]: simulating 'work' for %sms" *consumer-tag* val)
        (Thread/sleep val))
-   (log/infof "CONSUMER[%s]: [%s|%s] msg-id[%s]:%s body='%s'" *consumer-tag* (.getRoutingKey *envelope*) (.getDeliveryTag *envelope*) *message-timestamp* *message-id* *body*nn)
+   (log/infof "CONSUMER[%s]: [%s|%s] msg-id[%s]:%s body='%s'" *consumer-tag* (.getRoutingKey *envelope*) (.getDeliveryTag *envelope*) *message-timestamp* *message-id* *body*)
    (catch Exception ex
      (log/errorf ex "Consumer Error: %s" ex))))
 
@@ -48,9 +48,9 @@
 
 (comment
 
-  (add-consumer :foof01)
-  (add-consumer :foof02)
-  (stop-one :foof01)
+  (add-consumer :foof01 2)
+  (add-consumer :foof02 2)
+  (stop-consumer :foof01)
   (stop-all :foof01)
   (stop-all :foof02)
   (stop-all)

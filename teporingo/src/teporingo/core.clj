@@ -98,7 +98,6 @@
 
 
 (defn ensure-connection! [conn]
-  (def *core-bar* conn)
   (if (contains? conn :connections)
     (doseq [conn (:connections conn)]
       (ensure-connection! conn))

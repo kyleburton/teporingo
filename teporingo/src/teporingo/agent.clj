@@ -10,15 +10,6 @@
 ;; and the re-connection agent
 
 
-(comment
-  (def blocking-queue (ArrayBlockingQueue. 1))
-
-  (.offer blocking-queue :ok)
-
-  (.poll blocking-queue 1000 TimeUnit/NANOSECONDS)
-
-
-  )
 (def connection-agent (agent nil))
 
 (defn agent-open-connection! [agent-state conn]
