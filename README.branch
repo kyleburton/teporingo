@@ -1,28 +1,8 @@
-h1. Branch: Unify Publisher and Consumer Configurations
+h1. Branch: master
 
-Create a broker registry.
-
-Brokers can be registered with roles.
-
-Brokers are defined as a host:port, vhost, user/pass (rabbit) and other low
-level connection parameters.
-
-Publishers are a set of brokers (based on a role), publishing configuration
-(message properties, immediate/mandatory flats, retries), marshallers (routing
-key fn, message body serializer fn), and AMQP topology (exchange, queues and
-bindings).
+No major plans in this branch at this time.
 
 T: todo
 P: In Progress
 D: Done
 
-D: Create Broker Registry
-D: Publisher Registry
-D: Publisher to use broker registry
-D: Publisher to use Pools (clorine)
-D: new publish function that uses pool instance and binding
-D: Update publish example to use new publisher
-D: Update consumer registry to use broker registry
-D: Update consumer example
-D: test basic pub/consume 
-D: test key dedupe vai redis
