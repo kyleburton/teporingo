@@ -1,0 +1,6 @@
+% Teporingo Generated RabbitMQ Config File for <%= node["name"] %>
+[
+ {rabbitmq_mochiweb_web, 
+   [{listeners, [{mgmt, [{port, <%= node["management_port"] %>}]}],
+    {default_listener, [{port, <%= node["default_listener"] %>}]} }]}
+ ].

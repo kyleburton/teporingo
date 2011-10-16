@@ -1,3 +1,5 @@
+require 'erb'
+require 'ostruct'
 require 'pp'
 require 'yaml'
 
@@ -42,6 +44,15 @@ def rabbitmqctl node, action, *fields
   puts ""
 end
 
+def ensure_rabbitmq_config cfg_file, node
+  erb_template = File.join($teporingo_root,"lib","tasks","teporingo","rabbit","rabbitmq.config.erb")
+  template = File.read(erb_template)
+  bindings = OpenStruct.new({:node => node})
+  result = ERB.new(template).result(bindings.send(:binding))
+  File.open(cfg_file,"w") do |f|
+    f.puts result
+  end
+end
 
 namespace :teporingo do
   namespace :rabbit do
@@ -72,10 +83,14 @@ namespace :teporingo do
         ENV['RABBITMQ_NODENAME']        = nodename(node)
         ENV['RABBITMQ_MNESIA_BASE']     = "#{$teporingo_root}/tmp/harabbit/#{node["name"]}/mnesia"
         ENV['RABBITMQ_LOG_BASE']        = "#{$teporingo_root}/tmp/harabbit/#{node["name"]}/logs"
+        ENV['RABBITMQ_CONFIG_FILE']     = "#{$teporingo_root}/tmp/harabbit/#{node["name"]}/rabbitmq.config"
+        puts "RABBITMQ_CONFIG_FILE: #{ENV['RABBITMQ_CONFIG_FILE']}"
 
         [ ENV['RABBITMQ_MNESIA_BASE'], ENV['RABBITMQ_LOG_BASE'] ].each do |dir|
           FileUtils.mkdir_p(dir) unless File.exist?(dir)
         end
+
+        ensure_rabbitmq_config ENV['RABBITMQ_CONFIG_FILE'], node
 
         system "#{$teporingo_root}/rabbitmq-server/#{rabbit_dir}/sbin/rabbitmq-server"
       end

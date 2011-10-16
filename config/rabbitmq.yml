@@ -5,6 +5,10 @@ rabbit:
   - name: rabbit01
     port: 15671
     host: localhost
+    management_port: 55555
+    default_listener: 55670
   - name: rabbit02
     port: 15672
     host: localhost
+    management_port: 55556
+    default_listener: 55671
