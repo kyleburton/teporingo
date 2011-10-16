@@ -19,10 +19,10 @@ D: Done
 D: Create Broker Registry
 D: Publisher Registry
 D: Publisher to use broker registry
-T: Publisher to use Pools (clorine)
-T: new publish function that uses pool instance and binding
-T: Update publish example to use new publisher
-T: Update consumer registry to use broker registry
-T: Update consumer example
-T: test basic pub/consume 
-T: test key dedupe vai redis
+D: Publisher to use Pools (clorine)
+D: new publish function that uses pool instance and binding
+D: Update publish example to use new publisher
+D: Update consumer registry to use broker registry
+D: Update consumer example
+D: test basic pub/consume 
+D: test key dedupe vai redis
