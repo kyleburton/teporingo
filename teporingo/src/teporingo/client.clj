@@ -268,7 +268,11 @@
 (defn add-consumer
   ([consumer-name]
      (let [config        (lookup-consumer consumer-name)
-           conn          (atom (merge (broker/lookup (:broker-name config))
+           broker-config (if-let [broker-config (broker/lookup (:broker-name config))]
+                           broker-config
+                           (raise "Error: no broker registered with name: %s in %s" (:broker-name config)
+                                  (keys @broker/*broker-registry*)))
+           conn          (atom (merge broker-config
                                       (:consumer-config config)))
            consumer      (make-consumer consumer-name conn (:handler-functions config))]
        (start-consumer! consumer)))
