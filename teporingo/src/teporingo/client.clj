@@ -20,7 +20,8 @@
     ShutdownSignalException])
   (:require
    [clj-etl-utils.log :as log]
-   [teporingo.broker  :as broker])
+   [teporingo.broker  :as broker]
+   [teporingo.publish :as pub])
   (:use
    teporingo.core
    [clj-etl-utils.lang-utils :only [raise]]))
@@ -272,7 +273,9 @@
                            broker-config
                            (raise "Error: no broker registered with name: %s in %s" (:broker-name config)
                                   (keys @broker/*broker-registry*)))
+           exchange-info (pub/lookup (keyword (get-in config [:consumer-config :exchange-name])))
            conn          (atom (merge broker-config
+                                      exchange-info
                                       (:consumer-config config)))
            consumer      (make-consumer consumer-name conn (:handler-functions config))]
        (start-consumer! consumer)))
