@@ -5,6 +5,7 @@
   (require
    [clj-etl-utils.log :as log])
   (:use
+   teporingo.redis.bindings
    [teporingo.core :only [*message-id* *consumer-tag*]]
    [clj-etl-utils.lang-utils :only [raise aprog1]]))
 
@@ -19,13 +20,12 @@
              :configuration configuration
              :pool          (JedisPool.
                              (JedisPoolConfig.)
+                             ;; TODO: raise if no host or port specified
                              (:host configuration)
                              (:port configuration))})))
 
 (defn get-redis-pool [name]
   (get @*jedis-pools* name))
-
-(def ^{:dynamic true} *jedis* :does-not-exist)
 
 (defn with-jedis* [name the-fn]
   (let [instance (atom nil)
@@ -43,6 +43,7 @@
 
 (def *lock-timeout* (* 10 1000))
 
+;; TODO: move these into teporingo.redis.concurrent
 (defn- perform-processing-and-release-lock [the-fn now tstamp lock-key process-key]
   (aprog1
       ;; NB: added in try/catch exception handling - release the lock in the finally block
