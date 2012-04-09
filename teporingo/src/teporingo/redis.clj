@@ -20,9 +20,11 @@
              :configuration configuration
              :pool          (JedisPool.
                              (JedisPoolConfig.)
-                             ;; TODO: raise if no host or port specified
-                             (:host configuration)
-                             (:port configuration))})))
+                             (:host     configuration "localhost")
+                             (:port     configuration redis.clients.jedis/Protocol.DEFAULT_PORT)
+                             (:timeout  configuration redis.clients.jedis/Protocol.DEFAULT_TIMEOUT)
+                             (:password configuration nil)
+                             (:database configuration redis.clients.jedis/Protocol.DEFAULT_DATABASE))})))
 
 (defn get-redis-pool [name]
   (get @*jedis-pools* name))
