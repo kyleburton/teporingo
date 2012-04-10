@@ -21,8 +21,8 @@
              :pool          (JedisPool.
                              (JedisPoolConfig.)
                              (:host     configuration "localhost")
-                             (:port     configuration redis.clients.jedis/Protocol.DEFAULT_PORT)
-                             (:timeout  configuration redis.clients.jedis/Protocol.DEFAULT_TIMEOUT)
+                             (:port     configuration redis.clients.jedis.Protocol/DEFAULT_PORT)
+                             (:timeout  configuration redis.clients.jedis.Protocol/DEFAULT_TIMEOUT)
                              (:password configuration nil))})))
 
 (defn get-redis-pool [name]
