@@ -1,7 +1,7 @@
 (ns teporingo.redis
   (:import
    [redis.clients.jedis
-    Jedis JedisPool JedisPoolConfig])
+    Jedis JedisPool JedisPoolConfig Protocol])
   (require
    [clj-etl-utils.log :as log])
   (:use
@@ -21,8 +21,8 @@
              :pool          (JedisPool.
                              (JedisPoolConfig.)
                              (:host     configuration "localhost")
-                             (:port     configuration redis.clients.jedis.Protocol/DEFAULT_PORT)
-                             (:timeout  configuration redis.clients.jedis.Protocol/DEFAULT_TIMEOUT)
+                             (:port     configuration Protocol/DEFAULT_PORT)
+                             (:timeout  configuration Protocol/DEFAULT_TIMEOUT)
                              (:password configuration nil))})))
 
 (defn get-redis-pool [name]
