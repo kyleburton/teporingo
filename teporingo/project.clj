@@ -1,4 +1,4 @@
-(defproject com.github.kyleburton/teporingo "2.1.7"
+(defproject com.github.kyleburton/teporingo "2.1.8-SNAPSHOT"
   :url         "http://github.com/kyleburton/teporingo"
   :license {:name         "Eclipse Public License - v 1.0"
             :url          "http://www.eclipse.org/legal/epl-v10.html"
