@@ -1,4 +1,4 @@
-(defproject com.github.kyleburton/teporingo "2.1.7-SNAPSHOT"
+(defproject com.github.kyleburton/teporingo "2.1.7"
   :url         "http://github.com/kyleburton/teporingo"
   :license {:name         "Eclipse Public License - v 1.0"
             :url          "http://www.eclipse.org/legal/epl-v10.html"
@@ -11,6 +11,7 @@
   :dev-resources-path "dev-resources"
   :local-repo-classpath true
   :java-source-path "java"
+  :lein-release {:deploy-via :clojars :scm :git}
   :dependencies [[org.clojure/clojure "1.2.1"]
                  [org.clojure/clojure-contrib "1.2.0"]
                  [log4j/log4j "1.2.14"]
