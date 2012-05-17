@@ -18,7 +18,7 @@
    [teporingo.broker  :as broker])
   (:use
    teporingo.core
-   [clj-etl-utils.lang-utils :only [raise]]))
+   [clj-etl-utils.lang-utils :only [raise aprog1]]))
 
 (defonce *publisher-registry* (atom {}))
 
@@ -131,12 +131,28 @@
 
 
 
-(def *breaker-strategies* {:basic make-publish-circuit-breaker
-                           :agent make-pub-agent-breaker})
+(def *breaker-strategies*
+     (reduce
+      (fn [m [k v]]
+        (-> m
+            (assoc k v)
+            (assoc (name k) v)))
+      {}
+      {:basic make-publish-circuit-breaker
+       :agent make-pub-agent-breaker}))
+
+(defn config->publish-strategy [publisher-config]
+  (aprog1
+      (get *breaker-strategies* (:breaker-type publisher-config :basic))
+    (when-not it
+      (raise "Error: invalid breaker-type[%s] (valid types are %s) in configuration: %s"
+             (:breaker-type publisher-config)
+             (keys *breaker-strategies*)
+             publisher-config))))
 
 (defn make-publisher [publisher-name publisher-config]
   (let [brokers (broker/find-by-roles (:broker-roles publisher-config))
-        publish-strategy (get *breaker-strategies* (:breaker-type publisher-config) :basic)
+        publish-strategy (config->publish-strategy publisher-config)
         publisher
         {:name              publisher-name
          :publisher-config  publisher-config
