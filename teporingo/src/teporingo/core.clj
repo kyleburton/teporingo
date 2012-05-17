@@ -61,6 +61,17 @@
 
 (def *default-message-properties* MessageProperties/PERSISTENT_TEXT_PLAIN)
 
+(def message-property-lu
+     {"BASIC"                       MessageProperties/BASIC
+      "MINIMAL_PERSISTENT_BASIC"    MessageProperties/MINIMAL_PERSISTENT_BASIC
+      "MINIMAL_BASIC"               MessageProperties/MINIMAL_BASIC
+      "PERSISTENT_BASIC"            MessageProperties/PERSISTENT_BASIC
+      "PERSISTENT_TEXT_PLAIN"       MessageProperties/PERSISTENT_TEXT_PLAIN
+      "TEXT_PLAIN"                  MessageProperties/TEXT_PLAIN})
+
+(defn resolve-message-properties [props]
+  (get message-property-lu props props))
+
 (declare make-return-listener)
 (declare make-confirm-listener)
 (declare make-flow-listener)
@@ -170,6 +181,8 @@
   (if (contains? @conn :connections)
     (doseq [conn (:connections @conn)]
       (queue-declare! conn name durable exclusive autodelete arguments))
+    ;; NB: (when-not (:queue-name @conn)
+    ;;       (swap! @conn assoc :queue-name (str (java.util.UUID/randomUUID))))
     (.queueDeclare
      (:channel          @conn)
      (:queue-name       @conn name)
