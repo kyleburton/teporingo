@@ -201,7 +201,7 @@
       (shutdown-consumer-quietly! consumer)
       (log/debugf "agent-start-consumer! ensured shut down, about to start.  name=%s"
                   (:registered-name consumer))
-      (let [conn               (:conn           consumer)]
+      (let [conn (:conn           consumer)]
         (ensure-connection! conn)
         (exchange-declare!  conn)
         (queue-declare!     conn)

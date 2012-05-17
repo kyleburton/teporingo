@@ -1,0 +1,18 @@
+Test Cases:
+ * Fanout
+   - publish.clj: do not perform queue-declare! if there is no queue-name
+   - client.clj:  generate queue-name when none present in @conn
+   - core.clj: queue-declare! should validate:
+       when a queue-name is not specified,
+       assert that durable is false and autodelete is true or raise
+       an exception
+   Create toplogy:
+     one broker
+     one exchange, a fanout
+     one consumer config, no queue-name declared
+     create 2 consumer instances, have them increment an AtomicLong
+     publish 10 messages to the exchange
+     after X seconds, assert that the counter is at 20
+     shut down the 2 consumers
+     assert that there are no queues and no bidings to
+       the fanout exchange (they should have autodeleted)

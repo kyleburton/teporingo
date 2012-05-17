@@ -5,7 +5,6 @@
     Connection
     Channel
     AlreadyClosedException
-    MessageProperties
     Envelope
     AMQP$BasicProperties
     ShutdownSignalException]
@@ -25,23 +24,24 @@
 
 (defn ensure-publisher [publisher]
   (let [publisher-config (:publisher-config publisher)]
-   (doseq [broker (:brokers publisher)]
-     (let [conn (:conn broker)]
-       (when (nil? (:channel conn))
-         (ensure-connection! conn)
-         (exchange-declare!  conn (:exchange-name publisher-config) (:exchange-type publisher-config) (:exchange-durable publisher-config))
-         (doseq [queue (:queues publisher-config)]
-           (queue-declare! conn
-                           (:name       queue)
-                           (:durable    queue)
-                           (:exclusive  queue)
-                           (:autodelete queue)
-                           (:arguments  queue))
-           (doseq [binding (:bindings   queue)]
-             (queue-bind! conn
-                          (:name          queue)
-                          (:exchange-name publisher-config)
-                          (:routing-key   binding))))))))
+    (doseq [broker (:brokers publisher)]
+      (let [conn (:conn broker)]
+        (when (nil? (:channel conn))
+          (ensure-connection! conn)
+          (exchange-declare!  conn (:exchange-name publisher-config) (:exchange-type publisher-config) (:exchange-durable publisher-config))
+          (doseq [queue (:queues publisher-config)]
+            ;; NB: do not declare the queue here if it has no name
+            (queue-declare! conn
+                            (:name       queue)
+                            (:durable    queue)
+                            (:exclusive  queue)
+                            (:autodelete queue)
+                            (:arguments  queue))
+            (doseq [binding (:bindings   queue)]
+              (queue-bind! conn
+                           (:name          queue)
+                           (:exchange-name publisher-config)
+                           (:routing-key   binding))))))))
   {:res true :ex nil})
 
 (defn make-publish-circuit-breaker [conn]
@@ -84,6 +84,7 @@
    (close-connection!  conn)
    (ensure-connection! conn)
    (exchange-declare!  conn)
+   ;; NB: do not declare the queue here if it has no name
    (queue-declare!     conn)
    (queue-bind!        conn)
    (swap! conn assoc :closed? false)
@@ -146,7 +147,7 @@
                                   (swap! conn assoc :publish
                                          (publish-strategy conn))
                                   (assoc b :conn conn)))
-                                  brokers))}]
+                              brokers))}]
     (ensure-publisher publisher)
     publisher))
 
@@ -207,7 +208,7 @@
       routing-key
       true
       false
-      MessageProperties/PERSISTENT_TEXT_PLAIN
+      *default-message-properties*
       body
       num-retries))
   ([^Map publisher
@@ -234,7 +235,7 @@
            pub-errs                  (atom [])
            mandatory                 (if-not (nil? mandatory) mandatory true)
            immediate                 (if-not (nil? immediate) immediate true)
-           message-props             (or props MessageProperties/PERSISTENT_TEXT_PLAIN)
+           message-props             (or props *default-message-properties*)
            body                      (wrap-body-with-msg-id body)]
        (log/infof "publish: mandatory:%s immediate:%s" mandatory immediate)
        (doseq [broker (:brokers publisher)]
@@ -259,6 +260,9 @@
          (log/debugf "looks like we published to %s brokers.\n" @num-published)))))
 
 
+(defn- default-message-serializer [body]
+  (.getBytes (str body)))
+
 (defn with-publisher* [name f]
   (pool/with-instance [the-publisher name]
     (let [publisher-config (:publisher-config the-publisher)
@@ -269,21 +273,23 @@
                            (constantly rkey))
           mandatory-flag     (:mandatory          publisher-config)
           immediate-flag     (:immediate          publisher-config)
-          message-properties (:message-properties publisher-config)
-          serializer-fn      (:serializer         publisher-config)
+          message-properties (resolve-message-properties (:message-properties publisher-config *default-message-properties*))
+          serializer-fn      (:serializer         publisher-config default-message-serializer)
           num-retries        (:num-retries        publisher-config)]
-     (binding [publisher the-publisher
-               publish   (fn [body]
-                           (publish*
-                            the-publisher
-                            exchange-name
-                            (routing-key-fn body)
-                            mandatory-flag
-                            immediate-flag
-                            message-properties
-                            (serializer-fn body)
-                            num-retries))]
-       (f)))))
+      (when-not (fn? serializer-fn)
+        (raise "Invalid serializer function: %s is not a function" serializer-fn))
+      (binding [publisher the-publisher
+                publish   (fn [body]
+                            (publish*
+                             the-publisher
+                             exchange-name
+                             (routing-key-fn body)
+                             mandatory-flag
+                             immediate-flag
+                             message-properties
+                             (serializer-fn body)
+                             num-retries))]
+        (f)))))
 
 (defmacro with-publisher [name & body]
   `(with-publisher* ~name (fn [] ~@body)))
