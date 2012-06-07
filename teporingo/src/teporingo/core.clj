@@ -91,9 +91,9 @@
                        (:consumer-tag @conn "")
                        listener))
       (= :return listener-type)
-      (.setReturnListener channel  (:listener (make-return-listener conn listener)))
+      (.addReturnListener channel  (:listener (make-return-listener conn listener)))
       (= :confirm listener-type)
-      (.setConfirmListener channel (:listener (make-confirm-listener conn listener)))
+      (.addConfirmListener channel (:listener (make-confirm-listener conn listener)))
       ;; NB: allowing a default consumer is questionable IMO if we do
       ;; that, we should wrap this in a (make-default-consumer-listner
       ;; listener) as we do with the other listener types (=
