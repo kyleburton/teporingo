@@ -163,10 +163,10 @@
                              (log/infof "Consumer[%s/%s] will be restarted: conn=%s consumer=%s"
                                         consumer-name consumer-tag @conn @the-consumer)
                              (start-consumer! @the-consumer consumer-tag))))
-                  (^void handleRecoverOk [^Consumer this]
+                  (^void handleRecoverOk [^Consumer this ^String consumer-tag ]
                          (binding [*conn*         conn
                                    *consumer*     this]
-                           (recover))))]
+                           (recover consumer-tag))))]
     (swap! the-consumer assoc :listener consumer)
     @the-consumer))
 
