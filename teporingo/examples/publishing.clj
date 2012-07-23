@@ -33,13 +33,15 @@
   :breaker-type       :agent})
 
 (comment
+
   (time
    (pub/with-publisher :wocal_wabbits
-     (dotimes [ii 10]
+     (dotimes [ii 1]
        (try
         (publish (str "hello there:" ii))
         (printf "SUCCESS[%s]: Published to at least 1 broker.\n" ii)
         (catch Exception ex
+          (.printStackTrace ex)
           (printf "FAILURE[%s] %s\n" ii ex)
           (log/warnf ex "FAILURE[%s] %s\n" ii ex))))))
 
