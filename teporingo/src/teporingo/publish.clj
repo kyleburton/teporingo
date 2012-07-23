@@ -85,8 +85,19 @@
    (ensure-connection! conn)
    (exchange-declare!  conn)
    ;; NB: do not declare the queue here if it has no name
-   (queue-declare!     conn)
-   (queue-bind!        conn)
+   (doseq [queue (:queues @conn)]
+     ;; NB: do not declare the queue here if it has no name
+     (queue-declare! conn
+                     (:name       queue)
+                     (:durable    queue)
+                     (:exclusive  queue)
+                     (:autodelete queue)
+                     (:arguments  queue))
+     (doseq [binding (:bindings   queue)]
+       (queue-bind! conn
+                    (:name          queue)
+                    (:exchange-name @conn)
+                    (:routing-key   binding))))
    (swap! conn assoc :closed? false)
    (catch Exception ex
      (when (broker/enabled? (:registered-name @conn))
@@ -150,6 +161,10 @@
              (keys *breaker-strategies*)
              publisher-config))))
 
+(comment
+
+  )
+
 (defn make-publisher [publisher-name publisher-config]
   (let [brokers (broker/find-by-roles (:broker-roles publisher-config))
         publish-strategy (config->publish-strategy publisher-config)
@@ -159,14 +174,21 @@
          :brokers           (vec
                              (map
                               (fn [b]
-                                (let [conn (atom b)]
-                                  (swap! conn assoc :publish
-                                         (publish-strategy conn))
+                                (let [conn     (atom (merge b publisher-config))]
+                                  (swap! conn assoc :publish  (publish-strategy conn))
                                   (assoc b :conn conn)))
                               brokers))}]
+
     (ensure-publisher publisher)
     publisher))
 
+(comment
+
+
+
+  (:brokers *publisher*)
+
+  )
 (defn register [publisher-name publisher-config]
   (swap! *publisher-registry* assoc publisher-name publisher-config)
   (pool/register-pool
@@ -256,9 +278,9 @@
        (log/infof "publish: mandatory:%s immediate:%s" mandatory immediate)
        (doseq [broker (:brokers publisher)]
          (let [res (publish-1 (:conn broker) exchange routing-key mandatory immediate props body)]
-           (if (:res res)
-             (swap! num-published inc)
-             (swap! pub-errs conj (:ex res)))))
+             (if (:res res)
+               (swap! num-published inc)
+               (swap! pub-errs conj (:ex res)))))
        (cond
          (= 0 @num-published)
          (do
@@ -267,11 +289,11 @@
              (log/infof "attempting immediate reconnect on: %s" broker)
              (breaker-agent-open-connection nil (:conn broker)))
            (log/infof "completed reconnect, recursing")
-           (publish publisher exchange routing-key mandatory immediate props body (dec retries) (concat errors @pub-errs)))
+           (publish* publisher exchange routing-key mandatory immediate props body (dec retries) (concat errors @pub-errs)))
          (< @num-published min-brokers-published-to)
          (do
            (log/debugf "num-published %s was <%s, retrying..." @num-published min-brokers-published-to)
-           (publish publisher exchange routing-key mandatory immediate props body (dec retries) (concat errors @pub-errs)))
+           (publish* publisher exchange routing-key mandatory immediate props body (dec retries) (concat errors @pub-errs)))
          :else
          (log/debugf "looks like we published to %s brokers.\n" @num-published)))))
 

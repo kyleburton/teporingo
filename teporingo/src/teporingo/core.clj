@@ -107,10 +107,9 @@
              @conn
              listener))))
 
-
 (defn ensure-connection! [conn]
-  (if (contains? conn :connections)
-    (doseq [conn (:connections conn)]
+  (if (contains? @conn :connections)
+    (doseq [conn (:connections @conn)]
       (ensure-connection! conn))
     (when (nil? (:channel @conn))
       (let [factory (aprog1
@@ -146,8 +145,6 @@
             (attach-listener! conn {:type listener-type :listener listener}))))))
   conn)
 
-
-
 (defn close-quietly [thing]
   (let [result (atom {:close-result nil
                       :exception nil})]
@@ -158,7 +155,7 @@
     @result))
 
 (defn close-connection! [conn]
-  (if (contains? conn :connections)
+  (if (contains? @conn :connections)
     (doseq [conn (:connections conn)]
       (close-connection! conn))
     (do
