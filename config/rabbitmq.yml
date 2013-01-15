@@ -1,6 +1,7 @@
 --- 
 rabbit: 
-  download_url: http://www.rabbitmq.com/releases/rabbitmq-server/v2.6.1/rabbitmq-server-generic-unix-2.6.1.tar.gz
+  #download_url: http://www.rabbitmq.com/releases/rabbitmq-server/v2.6.1/rabbitmq-server-generic-unix-2.6.1.tar.gz
+  download_url: http://www.rabbitmq.com/releases/rabbitmq-server/v3.0.1/rabbitmq-server-generic-unix-3.0.1.tar.gz
   nodes: 
   - name: rabbit01
     port: 15671

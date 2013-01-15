@@ -339,9 +339,10 @@
   (let [body (String. bytes)]
     (if (.startsWith body *teporingo-magic*)
       ;; split into: magic|msg-id|tstamp|wrapped-body
-      (vec (.split (.substring body (inc (.length *teporingo-magic*)))
-                   "\0"
-                   3))
+      (let [[msg-id tstamp message-body] (vec (.split (.substring body (inc (.length *teporingo-magic*))) "\0" 3))]
+        (if (.startsWith message-body *teporingo-magic*)
+          (split-body-and-msg-id (.getBytes message-body))
+          [msg-id tstamp message-body]))
       [nil nil body])))
 
 (comment

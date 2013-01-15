@@ -1,8 +1,0 @@
-2011-07-11    <kyle.burton@gmail.com>
-
-	* examples/publishing.clj: factored publsih example into ./examples
-
-	* examples/consumer.clj: factored consumer example into ./examples
-
-	* src/teporingo/core.clj: listeners are now registered as part of the connection and will be attached when a conneciton is created during ensure-connection!
-

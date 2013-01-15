@@ -1,2 +1,15 @@
+Sat Jan 12 12:40:53 EST 2013
+  2.1.12 bugfix: when publish failed, messages are re-wrapped with the TEP message header resulting in the duplicate header not being sripped for consumers.  This change is a hotfix for stripping mutliple headers if present, allowing consumers to recover from the issue.  A future release will address the root cause.
+
+Thu Aug  9 08:35:07 EDT 2012
+  2.1.11 bugfix: wrong number of args on reconnection attempt in publish retry
 Tue Apr 10 14:38:30 EDT 2012
   2.1.5 fixes issues with broken 2.1.4
+2011-07-11    <kyle.burton@gmail.com>
+
+	* examples/publishing.clj: factored publsih example into ./examples
+
+	* examples/consumer.clj: factored consumer example into ./examples
+
+	* src/teporingo/core.clj: listeners are now registered as part of the connection and will be attached when a conneciton is created during ensure-connection!
+
