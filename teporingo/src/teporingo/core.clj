@@ -100,7 +100,7 @@
       ;; :default-consumer listener-type) (.setDefaultConsumer channel
       ;; listener)
       (= :flow listener-type)
-      (.setFlowListener    channel (:listener (make-flow-listener conn listener)))
+      (.addFlowListener    channel (:listener (make-flow-listener conn listener)))
       :else
       (raise "Error: unrecognized listener type: %s (not one of: :consumer or :return-listener) in conn=%s listener=%s"
              (str listener-type)
