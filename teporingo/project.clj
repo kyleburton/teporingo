@@ -17,7 +17,7 @@
                  [log4j/log4j "1.2.14"]
                  ; [clj-yaml "0.3.0-SNAPSHOT"]
                  [redis.clients/jedis "2.0.0"]
-                 [com.rabbitmq/amqp-client "2.8.2"]
+                 [com.rabbitmq/amqp-client "3.0.2"]
                  [org.clojars.kyleburton/clj-etl-utils "1.0.39"]
                  [com.relaynetwork/clorine "1.0.4"]]
   :autodoc {
