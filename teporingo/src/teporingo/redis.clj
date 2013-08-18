@@ -25,12 +25,17 @@
                              (:timeout  configuration Protocol/DEFAULT_TIMEOUT)
                              (:password configuration nil))})))
 
+(defn unregister-redis-pool [name]
+  (swap! *jedis-pools* dissoc name))
+
 (defn get-redis-pool [name]
   (get @*jedis-pools* name))
 
 (defn with-jedis* [name the-fn]
   (let [instance (atom nil)
         pool     (:pool (get-redis-pool name))]
+    (when (nil? pool)
+      (raise "Error: no pool named %s, the following are registered: %s" name (keys @*jedis-pools*)))
     (try
      (reset! instance (.getResource pool))
      (binding [*jedis* @instance]

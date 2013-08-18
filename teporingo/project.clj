@@ -5,7 +5,7 @@
             :distribution :repo
             :comments     "same as Clojure"}
   :description "Teporingo: HA Rabbit Client Library"
-  :dev-dependencies [[swank-clojure "1.4.0-SNAPSHOT"]
+  :dev-dependencies [[swank-clojure "1.4.3"]
                      [lein-margauto "1.0.0"]
                      [lein-exec "0.1"]]
   :dev-resources-path "dev-resources"
@@ -16,7 +16,7 @@
                  [org.clojure/clojure-contrib "1.2.0"]
                  [log4j/log4j "1.2.14"]
                  ; [clj-yaml "0.3.0-SNAPSHOT"]
-                 [redis.clients/jedis "2.0.0"]
+                 [redis.clients/jedis "2.1.0"]
                  [com.rabbitmq/amqp-client "3.0.2"]
                  [org.clojars.kyleburton/clj-etl-utils "1.0.39"]
                  [com.relaynetwork/clorine "1.0.4"]]
