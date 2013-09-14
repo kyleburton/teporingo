@@ -20,7 +20,7 @@
    [clj-etl-utils.log :as log]
    [teporingo.breaker :as breaker]
    [rn.clorine.pool :as pool]
-   [clojure.contrib.json :as json])
+   [clojure.data.json :as json])
   (:use
    [clj-etl-utils.lang-utils :only [raise aprog1]]))
 

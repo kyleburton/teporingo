@@ -18,7 +18,7 @@
   :dev-resources-path "dev-resources"
 
   :profiles             {:dev {:dependencies [[swank-clojure "1.4.3"]
-                                              [lein-marginalia "0.6.0"]]}
+                                              [lein-marginalia "0.7.1"]]}
                          :1.2 {:dependencies [[org.clojure/clojure "1.2.0"]]}
                          :1.3 {:dependencies [[org.clojure/clojure "1.3.0"]]}
                          :1.4 {:dependencies [[org.clojure/clojure "1.4.0"]]}
@@ -27,11 +27,12 @@
   :aliases              {"all" ["with-profile" "dev,1.2:dev,1.3:dev,1.4:dev,1.5:dev,1.6"]}
   :global-vars          {*warn-on-reflection* true}
   :dependencies         [
+                         [org.clojure/data.json                "0.2.3"]
                          [log4j/log4j                          "1.2.14"]
                          [redis.clients/jedis                  "2.1.0"]
                          [com.rabbitmq/amqp-client             "3.0.2"]
                          [org.clojars.kyleburton/clj-etl-utils "1.0.70"]
-                         [com.relaynetwork/clorine             "1.0.13"]
+                         [com.relaynetwork/clorine             "1.0.14"]
                          ]
 )
 
