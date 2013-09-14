@@ -1,29 +1,48 @@
 (defproject com.github.kyleburton/teporingo "2.1.16-SNAPSHOT"
+  :description "Teporingo: Rabbit Client Library"
   :url         "http://github.com/kyleburton/teporingo"
+  :lein-release {:deploy-via :clojars :scm :git}
   :license {:name         "Eclipse Public License - v 1.0"
             :url          "http://www.eclipse.org/legal/epl-v10.html"
             :distribution :repo
             :comments     "same as Clojure"}
-  :description "Teporingo: HA Rabbit Client Library"
-  :dev-dependencies [[swank-clojure "1.4.3"]
-                     [lein-margauto "1.0.0"]
-                     [lein-exec "0.1"]]
-  :dev-resources-path "dev-resources"
+  :repositories         {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"}
+  :java-source-paths     ["java"]
   :local-repo-classpath true
-  :java-source-path "java"
-  :lein-release {:deploy-via :clojars :scm :git}
-  :dependencies [[org.clojure/clojure "1.2.1"]
-                 [org.clojure/clojure-contrib "1.2.0"]
-                 [log4j/log4j "1.2.14"]
-                 ; [clj-yaml "0.3.0-SNAPSHOT"]
-                 [redis.clients/jedis "2.1.0"]
-                 [com.rabbitmq/amqp-client "3.0.2"]
-                 [org.clojars.kyleburton/clj-etl-utils "1.0.39"]
-                 [com.relaynetwork/clorine "1.0.4"]]
   :autodoc {
     :name "Teporingo"
     :page-title "Teporingo: API Documentation"
     :description "Teporingo: HA Rabbit Client Library"
     :web-home "http://kyleburton.github.com/projects/teporingo/"
-  })
+  }
+  :dev-resources-path "dev-resources"
+
+  :profiles             {:dev {:dependencies [[swank-clojure "1.4.3"]
+                                              [lein-marginalia "0.6.0"]]}
+                         :1.2 {:dependencies [[org.clojure/clojure "1.2.0"]]}
+                         :1.3 {:dependencies [[org.clojure/clojure "1.3.0"]]}
+                         :1.4 {:dependencies [[org.clojure/clojure "1.4.0"]]}
+                         :1.5 {:dependencies [[org.clojure/clojure "1.5.1"]]}
+                         :1.6 {:dependencies [[org.clojure/clojure "1.6.0-master-SNAPSHOT"]]}}
+  :aliases              {"all" ["with-profile" "dev,1.2:dev,1.3:dev,1.4:dev,1.5:dev,1.6"]}
+  :global-vars          {*warn-on-reflection* true}
+  :dependencies         [
+                         [log4j/log4j                          "1.2.14"]
+                         [redis.clients/jedis                  "2.1.0"]
+                         [com.rabbitmq/amqp-client             "3.0.2"]
+                         [org.clojars.kyleburton/clj-etl-utils "1.0.70"]
+                         [com.relaynetwork/clorine             "1.0.13"]
+                         ]
+)
+
+
+;;  :dependencies [
+;;                 
+;;                 [log4j/log4j "1.2.14"]
+;;                 ; [clj-yaml "0.3.0-SNAPSHOT"]
+;;                 [redis.clients/jedis "2.1.0"]
+;;                 [com.rabbitmq/amqp-client "3.0.2"]
+;;                 [org.clojars.kyleburton/clj-etl-utils "1.0.39"]
+;;                 [com.relaynetwork/clorine "1.0.4"]]
+;;)
 
