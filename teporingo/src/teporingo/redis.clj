@@ -9,13 +9,13 @@
    [teporingo.core :only [*message-id* *consumer-tag*]]
    [clj-etl-utils.lang-utils :only [raise aprog1]]))
 
-(defonce *jedis-pools* (atom {}))
+(defonce jedis-pools (atom {}))
 
 (defn register-redis-pool
   ([name]
      (register-redis-pool name {:host "localhost" :port 6379}))
   ([name configuration]
-     (swap! *jedis-pools* assoc name
+     (swap! jedis-pools assoc name
             {:name          name
              :configuration configuration
              :pool          (JedisPool.
@@ -26,16 +26,16 @@
                              (:password configuration nil))})))
 
 (defn unregister-redis-pool [name]
-  (swap! *jedis-pools* dissoc name))
+  (swap! jedis-pools dissoc name))
 
 (defn get-redis-pool [name]
-  (get @*jedis-pools* name))
+  (get @jedis-pools name))
 
 (defn with-jedis* [name the-fn]
   (let [instance (atom nil)
         pool     (:pool (get-redis-pool name))]
     (when (nil? pool)
-      (raise "Error: no pool named %s, the following are registered: %s" name (keys @*jedis-pools*)))
+      (raise "Error: no pool named %s, the following are registered: %s" name (keys @jedis-pools)))
     (try
      (reset! instance (.getResource pool))
      (binding [*jedis* @instance]
@@ -47,7 +47,7 @@
 (defmacro with-jedis [name & body]
   `(with-jedis* ~name (fn [] ~@body)))
 
-(def *lock-timeout* (* 10 1000))
+(def lock-timeout (* 10 1000))
 
 ;; TODO: move these into teporingo.redis.concurrent
 (defn- perform-processing-and-release-lock [the-fn now tstamp lock-key process-key]
@@ -73,7 +73,7 @@
         process-key (str "tep." the-key ".processed")
         lock-key    (str "tep." the-key ".lock")
         now         (.getTimeInMillis (java.util.Calendar/getInstance))
-        timeout     (:timeout spec *lock-timeout*)
+        timeout     (:timeout spec lock-timeout)
         tstamp      (str (+ now timeout 1000))
         retries     (:retries spec 0)
         max-retries (:max-retries spec 3)]

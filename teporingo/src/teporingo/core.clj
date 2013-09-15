@@ -32,34 +32,34 @@
 ;; contains the connection information and broker credentails, along
 ;; with the connection information and credentials
 
-(def *default-routing-key* "#")
+(def ^:dynamic *default-routing-key* "#")
 
 ;; NB: when we hit clojure 1.3, use ^:dynamic
-(def *conn*         nil)
-(def *consumer*     nil)
-(def *consumer-tag* nil)
-(def *envelope*     nil)
-(def *properties*   nil)
-(def *body*         nil)
-(def *raw-body*     nil)
-(def *message-id*   nil)
-(def *message-timestamp* nil)
-(def *sig*          nil)
-(def *listener*     nil)
-(def *reply-code*   nil)
-(def *reply-text*   nil)
-(def *exchange*     nil)
-(def *routing-key*  nil)
-(def *props*        nil)
-(def *message-properties* nil)
-(def *confirm-type* nil)
-(def *delivery-tag* nil)
-(def *multiple*     nil)
-(def *active*       nil)
-(def publisher      nil)
-(def publish        nil)
+(def ^:dynamic *conn*         nil)
+(def ^:dynamic *consumer*     nil)
+(def ^:dynamic *consumer-tag* nil)
+(def ^:dynamic *envelope*     nil)
+(def ^:dynamic *properties*   nil)
+(def ^:dynamic *body*         nil)
+(def ^:dynamic *raw-body*     nil)
+(def ^:dynamic *message-id*   nil)
+(def ^:dynamic *message-timestamp* nil)
+(def ^:dynamic *sig*          nil)
+(def ^:dynamic *listener*     nil)
+(def ^:dynamic *reply-code*   nil)
+(def ^:dynamic *reply-text*   nil)
+(def ^:dynamic *exchange*     nil)
+(def ^:dynamic *routing-key*  nil)
+(def ^:dynamic *props*        nil)
+(def ^:dynamic *message-properties* nil)
+(def ^:dynamic *confirm-type* nil)
+(def ^:dynamic *delivery-tag* nil)
+(def ^:dynamic *multiple*     nil)
+(def ^:dynamic *active*       nil)
+(def ^:dynamic publisher      nil)
+(def ^:dynamic publish        nil)
 
-(def *default-message-properties* MessageProperties/PERSISTENT_TEXT_PLAIN)
+(def ^:dynamic *default-message-properties* MessageProperties/PERSISTENT_TEXT_PLAIN)
 
 (def message-property-lu
      {"BASIC"                       MessageProperties/BASIC
@@ -282,9 +282,9 @@
 (defmacro delay-by [ms & body]
   `(delay-by* ~ms (fn the-delayed [] ~@body)))
 
-(def *teporingo-magic* (str "\0\0" "TEP"))
+(def teporingo-magic (str "\0\0" "TEP"))
 
-(def *base-62-alphabet* "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+(def base-62-alphabet "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 (defn num->string [num alphabet]
   (if (zero? num)
@@ -304,16 +304,16 @@
 
 (comment
 
-  (num->string 79912342343413 *base-62-alphabet*)
+  (num->string 79912342343413 base-62-alphabet)
 
   )
 
 
 (defn compact-uuid [uuid]
   (str
-   (num->string (Math/abs (.getMostSignificantBits uuid)) *base-62-alphabet*)
+   (num->string (Math/abs (.getMostSignificantBits uuid)) base-62-alphabet)
    "-"
-   (num->string (Math/abs (.getLeastSignificantBits uuid)) *base-62-alphabet*)))
+   (num->string (Math/abs (.getLeastSignificantBits uuid)) base-62-alphabet)))
 
 (defn random-compact-uuid []
   (compact-uuid (UUID/randomUUID)))
@@ -324,7 +324,7 @@
 ;; nb: body is a byte array
 (defn wrap-body-with-msg-id [body]
   (let [pfx (.getBytes (str
-                        *teporingo-magic*
+                        teporingo-magic
                         "\0"
                         (random-compact-uuid)
                         "\0"
@@ -337,10 +337,10 @@
 
 (defn split-body-and-msg-id [bytes]
   (let [body (String. bytes)]
-    (if (.startsWith body *teporingo-magic*)
+    (if (.startsWith body teporingo-magic)
       ;; split into: magic|msg-id|tstamp|wrapped-body
-      (let [[msg-id tstamp message-body] (vec (.split (.substring body (inc (.length *teporingo-magic*))) "\0" 3))]
-        (if (.startsWith message-body *teporingo-magic*)
+      (let [[msg-id tstamp message-body] (vec (.split (.substring body (inc (.length teporingo-magic))) "\0" 3))]
+        (if (.startsWith message-body teporingo-magic)
           (split-body-and-msg-id (.getBytes message-body))
           [msg-id tstamp message-body]))
       [nil nil body])))
