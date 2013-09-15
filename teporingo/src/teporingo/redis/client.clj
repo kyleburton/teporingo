@@ -189,11 +189,11 @@
   (cond
     (isa? (class (first args)) String)
     (let [[k & vals] args]
-     (.lpush *jedis* k ^"[Ljava.lang.String;" (into-array vals)))
+      (.lpush *jedis* k ^"[Ljava.lang.String;" (into-array vals)))
 
     :first-arg-is-connection
     (let [[conn k & vals] args]
-     (.lpush conn k ^"[Ljava.lang.String;" (into-array (rest vals))))))
+      (.lpush conn k ^"[Ljava.lang.String;" (into-array (rest vals))))))
 
 (defn rpush
   ([^String k ^String v]
@@ -478,40 +478,55 @@
 
 (defn hvals
   ([^String k]
-     (seq (.hvals *jedis* k)))
+     (hvals *jedis* k))
   ([conn ^String k]
-     (seq (.hvals conn k))))
+     (cond
+       (isa? (class conn) Jedis)
+       (seq (.hvals ^Jedis conn k))
+
+       :pipelined
+       (.hvals ^redis.clients.jedis.Pipeline conn k))))
 
 (defn hgetall
   ([^String k]
-     (.hgetAll *jedis* k))
+     (hgetall *jedis* k))
   ([conn ^String k]
-     (.hgetAll conn k)))
+     (cond
+       (isa? (class conn) Jedis)
+       (.hgetAll ^Jedis conn k)
+
+       :pipelined
+       (.hgetAll ^redis.clients.jedis.Pipeline conn k))))
 
 
                                         ; Pub-Sub
 
 (defn publish
   ([^String c ^String m]
-     (.publish *jedis* c m))
+     (publish *jedis* c m))
   ([conn ^String c ^String m]
-     (.publish conn c m)))
+     (cond
+       (isa? (class conn) Jedis)
+       (.publish ^Jedis conn c m)
+
+       :pipelined
+       (.publish ^redis.clients.jedis.Pipeline conn c m))))
 
 (defn subscribe
   ([chs handler]
-     (let [pub-sub (proxy [JedisPubSub] []
-                     (onSubscribe [ch cnt])
-                     (onUnsubscribe [ch cnt])
-                     (onMessage [ch msg] (handler ch msg)))]
-       (.subscribe *jedis* pub-sub ^"[Ljava.lang.String;" (into-array chs))))
-  ([conn chs handler]
-     (let [pub-sub (proxy [JedisPubSub] []
-                     (onSubscribe [ch cnt])
-                     (onUnsubscribe [ch cnt])
-                     (onMessage [ch msg] (handler ch msg)))]
+     (let [^JedisPubSub pub-sub (proxy [JedisPubSub] []
+                                  (onSubscribe [ch cnt])
+                                  (onUnsubscribe [ch cnt])
+                                  (onMessage [ch msg] (handler ch msg)))]
+       (.subscribe ^Jedis *jedis* pub-sub ^"[Ljava.lang.String;" (into-array chs))))
+  ([^Jedis conn chs handler]
+     (let [^JedisPubSub pub-sub (proxy [JedisPubSub] []
+                                  (onSubscribe [ch cnt])
+                                  (onUnsubscribe [ch cnt])
+                                  (onMessage [ch msg] (handler ch msg)))]
        (.subscribe conn pub-sub ^"[Ljava.lang.String;" (into-array chs)))))
 
-(defn- pipelined-results-seq [r]
+(defn- pipelined-results-seq [^java.util.List r]
   (map
    #(.get r %)
    (range (.size r))))
@@ -521,7 +536,7 @@
   ([f]
      (transaction* *jedis* f))
   ([conn f]
-     (let [p (.pipelined conn)]
+     (let [^redis.clients.jedis.Pipeline p (.pipelined ^Jedis conn)]
        (.multi p)
        (binding [*jedis* p]
          (f))
@@ -535,3 +550,13 @@
   `(transaction*
     (fn []
       ~@body)))
+
+
+(comment
+
+  (require 'teporingo.redis)
+  (teporingo.redis/register-redis-pool :local)
+  (teporingo.redis/with-jedis :local
+    *jedis*)
+
+  )

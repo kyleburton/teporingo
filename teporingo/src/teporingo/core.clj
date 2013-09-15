@@ -19,7 +19,7 @@
   (:require
    [clj-etl-utils.log :as log]
    [teporingo.breaker :as breaker]
-   [rn.clorine.pool :as pool]
+   [rn.clorine.pool   :as pool]
    [clojure.data.json :as json])
   (:use
    [clj-etl-utils.lang-utils :only [raise aprog1]]))
@@ -77,7 +77,7 @@
 (declare make-flow-listener)
 
 (defn attach-listener! [conn listener]
-  (let [channel       (:channel  @conn)
+  (let [^Channel channel       (:channel  @conn)
         listener-type (:type     listener)
         listener      (:listener listener)]
     (log/infof "attach-listener! attaching[%s] %s to %s"
@@ -86,10 +86,10 @@
       (= :consumer listener-type)
       (do
         (.basicConsume channel
-                       (:queue-name   @conn)
+                       ^String (:queue-name   @conn)
                        (:auto-ack     @conn false)
-                       (:consumer-tag @conn "")
-                       listener))
+                       ^String (:consumer-tag @conn "")
+                       ^Consumer listener))
       (= :return listener-type)
       (.addReturnListener channel  (:listener (make-return-listener conn listener)))
       (= :confirm listener-type)

@@ -1,6 +1,8 @@
 (ns teporingo.redis.bindings)
 
-(def ^{:dynamic true} *jedis* :does-not-exist)
+(def ^{:dynamic true
+       ;; :tag redis.clients.jedis.Jedis
+       } *jedis* :does-not-exist)
 
 
 

@@ -6,7 +6,6 @@
     BreakerReOpenedException])
   (:require
    [clj-etl-utils.log :as log])
-
   (:use
    [clj-etl-utils.lang-utils :only [raise aprog1]]))
 
