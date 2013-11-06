@@ -37,6 +37,6 @@
                          [redis.clients/jedis                  "2.1.0"]
                          [com.rabbitmq/amqp-client             "3.0.2"]
                          [com.github.kyleburton/clj-etl-utils  "1.0.76"]
-                         [com.relaynetwork/clorine             "1.0.17"]
+                         [com.relaynetwork/clorine             "1.0.16"]
                          ]
 )
