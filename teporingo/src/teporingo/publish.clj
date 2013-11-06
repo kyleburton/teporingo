@@ -278,7 +278,6 @@
            pub-errs                  (atom [])
            mandatory                 (if-not (nil? mandatory) mandatory true)
            immediate                 (if-not (nil? immediate) immediate true)
-           message-props             (or props *default-message-properties*)
            body                      (wrap-body-with-msg-id body)]
        (log/infof "publish: mandatory:%s immediate:%s" mandatory immediate)
        (doseq [broker (:brokers publisher)]
