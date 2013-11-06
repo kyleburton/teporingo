@@ -189,13 +189,18 @@
   (:brokers *publisher*)
 
   )
-(defn register [publisher-name publisher-config]
-  (swap! *publisher-registry* assoc publisher-name publisher-config)
-  (pool/register-pool
-   publisher-name
-   (pool/make-factory
-    {:make-fn (fn [pool-impl]
-                (make-publisher publisher-name publisher-config))})))
+
+(defn register
+  ([publisher-name publisher-config]
+     (register publisher-name publisher-config {}))
+  ([publisher-name publisher-config pool-config]
+     (swap! *publisher-registry* assoc publisher-name publisher-config)
+     (pool/register-pool
+      publisher-name
+      (pool/make-factory
+       {:make-fn (fn [pool-impl]
+                   (make-publisher publisher-name publisher-config))})
+      pool-config)))
 
 (defn unregister [name]
   (swap! *publisher-registry* dissoc name))
