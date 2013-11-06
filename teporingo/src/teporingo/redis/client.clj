@@ -30,11 +30,11 @@
 (defn del [& args]
   (cond
     (isa? (class (first args)) String)
-    (.del *jedis* ^"[Ljava.lang.String;" (into-array args))
+    (.del *jedis* ^"[Ljava.lang.String;" (into-array String args))
 
     :first-arg-is-connection
     (let [[conn & keys] args]
-      (.del conn ^"[Ljava.lang.String;" (into-array keys)))))
+      (.del conn ^"[Ljava.lang.String;" (into-array String keys)))))
 
 (defn keys
   ([^String pattern]
@@ -132,25 +132,25 @@
 (defn mget [& args]
   (cond
     (isa? (class (first args)) String)
-    (seq (.mget *jedis* ^"[Ljava.lang.String;" (into-array args)))
+    (seq (.mget *jedis* ^"[Ljava.lang.String;" (into-array String args)))
 
     :first-arg-is-connection
     (let [[conn & keys] args]
-      (seq (.mget conn ^"[Ljava.lang.String;" (into-array keys))))))
+      (seq (.mget conn ^"[Ljava.lang.String;" (into-array String keys))))))
 
 (defn mset [& args]
   (cond
     (isa? (class (first args)) String)
-    (.mset *jedis* ^"[Ljava.lang.String;" (into-array args))
+    (.mset *jedis* ^"[Ljava.lang.String;" (into-array String args))
     :first-arg-is-connection
-    (.mset (first args) ^"[Ljava.lang.String;" (into-array (rest args)))))
+    (.mset (first args) ^"[Ljava.lang.String;" (into-array String (rest args)))))
 
 (defn msetnx [& args]
   (cond
     (isa? (class (first args)) String)
-    (.msetnx *jedis* ^"[Ljava.lang.String;" (into-array args))
+    (.msetnx *jedis* ^"[Ljava.lang.String;" (into-array String args))
     :first-arg-is-connection
-    (.msetnx (first args) ^"[Ljava.lang.String;" (into-array (rest args)))))
+    (.msetnx (first args) ^"[Ljava.lang.String;" (into-array String (rest args)))))
 
 (defn getset
   ([^String k ^String v]
@@ -189,11 +189,11 @@
   (cond
     (isa? (class (first args)) String)
     (let [[k & vals] args]
-      (.lpush *jedis* k ^"[Ljava.lang.String;" (into-array vals)))
+      (.lpush *jedis* k ^"[Ljava.lang.String;" (into-array String vals)))
 
     :first-arg-is-connection
     (let [[conn k & vals] args]
-      (.lpush conn k ^"[Ljava.lang.String;" (into-array (rest vals))))))
+      (.lpush conn k ^"[Ljava.lang.String;" (into-array String (rest vals))))))
 
 (defn rpush
   ([^String k ^String v]
@@ -227,10 +227,10 @@
 
 (defn blpop
   ([ks ^Number t]
-     (if-let [pair (.blpop *jedis* (int t) ^"[Ljava.lang.String;" (into-array ks))]
+     (if-let [pair (.blpop *jedis* (int t) ^"[Ljava.lang.String;" (into-array String ks))]
        (seq pair)))
   ([conn ks ^Number t]
-     (if-let [pair (.blpop conn (int t) ^"[Ljava.lang.String;" (into-array ks))]
+     (if-let [pair (.blpop conn (int t) ^"[Ljava.lang.String;" (into-array String ks))]
        (seq pair))))
 
 (defn rpop
@@ -241,10 +241,10 @@
 
 (defn brpop
   ([ks ^Number t]
-     (if-let [pair (.brpop *jedis* (int t) ^"[Ljava.lang.String;" (into-array ks))]
+     (if-let [pair (.brpop *jedis* (int t) ^"[Ljava.lang.String;" (into-array String ks))]
        (seq pair)))
   ([conn ks ^Number t]
-     (if-let [pair (.brpop conn (int t) ^"[Ljava.lang.String;" (into-array ks))]
+     (if-let [pair (.brpop conn (int t) ^"[Ljava.lang.String;" (into-array String ks))]
        (seq pair))))
 
 (defn lrange
@@ -400,15 +400,15 @@
 
 (defn zinterstore
   ([^String d k]
-     (.zinterstore *jedis* d ^"[Ljava.lang.String;" (into-array k)))
+     (.zinterstore *jedis* d ^"[Ljava.lang.String;" (into-array String k)))
   ([conn ^String d k]
-     (.zinterstore conn d ^"[Ljava.lang.String;" (into-array k))))
+     (.zinterstore conn d ^"[Ljava.lang.String;" (into-array String k))))
 
 (defn zunionstore
   ([^String d k]
-     (.zunionstore *jedis* d ^"[Ljava.lang.String;" (into-array k)))
+     (.zunionstore *jedis* d ^"[Ljava.lang.String;" (into-array String k)))
   ([conn ^String d k]
-     (.zunionstore conn d ^"[Ljava.lang.String;" (into-array k))))
+     (.zunionstore conn d ^"[Ljava.lang.String;" (into-array String k))))
 
 
 ;; Hashes
@@ -422,11 +422,11 @@
   (cond
     (isa? (class (first args)) String)
     (let [[hash-name & keys] args]
-      (seq (.hmget *jedis* hash-name ^"[Ljava.lang.String;" (into-array keys))))
+      (seq (.hmget *jedis* hash-name ^"[Ljava.lang.String;" (into-array String keys))))
 
     :first-arg-is-connection
     (let [[conn hash-name & keys] args]
-      (seq (.hmget conn hash-name ^"[Ljava.lang.String;" (into-array keys))))))
+      (seq (.hmget conn hash-name ^"[Ljava.lang.String;" (into-array String keys))))))
 
 (defn hset
   ([^String k ^String f ^String v]
@@ -460,9 +460,9 @@
 
 (defn hdel
   ([^String k ^String f]
-     (.hdel *jedis* k f))
+     (.hdel *jedis* k (into-array String [f])))
   ([conn ^String k ^String f]
-     (.hdel conn k f)))
+     (.hdel conn k (into-array String [f]))))
 
 (defn hlen
   ([^String k]
@@ -518,13 +518,13 @@
                                   (onSubscribe [ch cnt])
                                   (onUnsubscribe [ch cnt])
                                   (onMessage [ch msg] (handler ch msg)))]
-       (.subscribe ^Jedis *jedis* pub-sub ^"[Ljava.lang.String;" (into-array chs))))
+       (.subscribe ^Jedis *jedis* pub-sub ^"[Ljava.lang.String;" (into-array String chs))))
   ([^Jedis conn chs handler]
      (let [^JedisPubSub pub-sub (proxy [JedisPubSub] []
                                   (onSubscribe [ch cnt])
                                   (onUnsubscribe [ch cnt])
                                   (onMessage [ch msg] (handler ch msg)))]
-       (.subscribe conn pub-sub ^"[Ljava.lang.String;" (into-array chs)))))
+       (.subscribe conn pub-sub ^"[Ljava.lang.String;" (into-array String chs)))))
 
 (defn- pipelined-results-seq [^java.util.List r]
   (map
