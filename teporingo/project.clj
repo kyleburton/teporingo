@@ -32,7 +32,6 @@
   :aliases              {"all" ["with-profile" "dev,1.2:dev,1.3:dev,1.4:dev,1.5:dev,1.6"]}
   :global-vars          {*warn-on-reflection* true}
   :dependencies         [
-                         [org.clojure/data.json                "0.2.3"]
                          [log4j/log4j                          "1.2.14"]
                          [redis.clients/jedis                  "2.1.0"]
                          [com.rabbitmq/amqp-client             "3.0.2"]
