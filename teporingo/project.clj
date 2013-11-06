@@ -1,4 +1,4 @@
-(defproject com.github.kyleburton/teporingo "2.1.22-SNAPSHOT"
+(defproject com.github.kyleburton/teporingo "2.1.22"
   :description "Teporingo: Rabbit Client Library"
   :url         "http://github.com/kyleburton/teporingo"
   :lein-release {:deploy-via :clojars :scm :git}
