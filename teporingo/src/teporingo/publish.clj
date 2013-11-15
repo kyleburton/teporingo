@@ -220,7 +220,7 @@
 ;; ;; there is no way to coorelate the message we attempted to publish
 ;; ;; with the one that was returned
 (defn publish-1
-  [^Atom conn
+  [conn
    ^String exchange
    ^String routing-key
    ^Boolean mandatory
