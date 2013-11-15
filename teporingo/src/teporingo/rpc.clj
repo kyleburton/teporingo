@@ -1,7 +1,7 @@
 (ns teporingo.rpc
   (:require
    [clj-etl-utils.log                                 :as log]
-   [clojure.contrib.json                              :as json]
+   [clojure.data.json                                 :as json]
    [teporingo.publish                                 :as mq-pub])
   (:use
    [teporingo.core           :only [publish]]

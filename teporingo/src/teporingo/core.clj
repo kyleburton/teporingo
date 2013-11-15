@@ -19,8 +19,8 @@
   (:require
    [clj-etl-utils.log :as log]
    [teporingo.breaker :as breaker]
-   [rn.clorine.pool :as pool]
-   [clojure.contrib.json :as json])
+   [rn.clorine.pool   :as pool]
+   [clojure.data.json :as json])
   (:use
    [clj-etl-utils.lang-utils :only [raise aprog1]]))
 
@@ -32,34 +32,33 @@
 ;; contains the connection information and broker credentails, along
 ;; with the connection information and credentials
 
-(def *default-routing-key* "#")
+(def ^{:dynamic true} *default-routing-key* "#")
 
-;; NB: when we hit clojure 1.3, use ^:dynamic
-(def *conn*         nil)
-(def *consumer*     nil)
-(def *consumer-tag* nil)
-(def *envelope*     nil)
-(def *properties*   nil)
-(def *body*         nil)
-(def *raw-body*     nil)
-(def *message-id*   nil)
-(def *message-timestamp* nil)
-(def *sig*          nil)
-(def *listener*     nil)
-(def *reply-code*   nil)
-(def *reply-text*   nil)
-(def *exchange*     nil)
-(def *routing-key*  nil)
-(def *props*        nil)
-(def *message-properties* nil)
-(def *confirm-type* nil)
-(def *delivery-tag* nil)
-(def *multiple*     nil)
-(def *active*       nil)
-(def publisher      nil)
-(def publish        nil)
+(def ^{:dynamic true} *conn*         nil)
+(def ^{:dynamic true} *consumer*     nil)
+(def ^{:dynamic true} *consumer-tag* nil)
+(def ^{:dynamic true} *envelope*     nil)
+(def ^{:dynamic true} *properties*   nil)
+(def ^{:dynamic true} *body*         nil)
+(def ^{:dynamic true} *raw-body*     nil)
+(def ^{:dynamic true} *message-id*   nil)
+(def ^{:dynamic true} *message-timestamp* nil)
+(def ^{:dynamic true} *sig*          nil)
+(def ^{:dynamic true} *listener*     nil)
+(def ^{:dynamic true} *reply-code*   nil)
+(def ^{:dynamic true} *reply-text*   nil)
+(def ^{:dynamic true} *exchange*     nil)
+(def ^{:dynamic true} *routing-key*  nil)
+(def ^{:dynamic true} *props*        nil)
+(def ^{:dynamic true} *message-properties* nil)
+(def ^{:dynamic true} *confirm-type* nil)
+(def ^{:dynamic true} *delivery-tag* nil)
+(def ^{:dynamic true} *multiple*     nil)
+(def ^{:dynamic true} *active*       nil)
+(def ^{:dynamic true} publisher      nil)
+(def ^{:dynamic true} publish        nil)
 
-(def *default-message-properties* MessageProperties/PERSISTENT_TEXT_PLAIN)
+(def ^{:dynamic true} *default-message-properties* MessageProperties/PERSISTENT_TEXT_PLAIN)
 
 (def message-property-lu
      {"BASIC"                       MessageProperties/BASIC
@@ -77,7 +76,7 @@
 (declare make-flow-listener)
 
 (defn attach-listener! [conn listener]
-  (let [channel       (:channel  @conn)
+  (let [^Channel channel       (:channel  @conn)
         listener-type (:type     listener)
         listener      (:listener listener)]
     (log/infof "attach-listener! attaching[%s] %s to %s"
@@ -86,10 +85,10 @@
       (= :consumer listener-type)
       (do
         (.basicConsume channel
-                       (:queue-name   @conn)
+                       ^String (:queue-name   @conn)
                        (:auto-ack     @conn false)
-                       (:consumer-tag @conn "")
-                       listener))
+                       ^String (:consumer-tag @conn "")
+                       ^Consumer listener))
       (= :return listener-type)
       (.addReturnListener channel  (:listener (make-return-listener conn listener)))
       (= :confirm listener-type)
@@ -282,9 +281,9 @@
 (defmacro delay-by [ms & body]
   `(delay-by* ~ms (fn the-delayed [] ~@body)))
 
-(def *teporingo-magic* (str "\0\0" "TEP"))
+(def teporingo-magic (str "\0\0" "TEP"))
 
-(def *base-62-alphabet* "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+(def base-62-alphabet "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 (defn num->string [num alphabet]
   (if (zero? num)
@@ -304,16 +303,16 @@
 
 (comment
 
-  (num->string 79912342343413 *base-62-alphabet*)
+  (num->string 79912342343413 base-62-alphabet)
 
   )
 
 
 (defn compact-uuid [uuid]
   (str
-   (num->string (Math/abs (.getMostSignificantBits uuid)) *base-62-alphabet*)
+   (num->string (Math/abs (.getMostSignificantBits uuid)) base-62-alphabet)
    "-"
-   (num->string (Math/abs (.getLeastSignificantBits uuid)) *base-62-alphabet*)))
+   (num->string (Math/abs (.getLeastSignificantBits uuid)) base-62-alphabet)))
 
 (defn random-compact-uuid []
   (compact-uuid (UUID/randomUUID)))
@@ -324,7 +323,7 @@
 ;; nb: body is a byte array
 (defn wrap-body-with-msg-id [body]
   (let [pfx (.getBytes (str
-                        *teporingo-magic*
+                        teporingo-magic
                         "\0"
                         (random-compact-uuid)
                         "\0"
@@ -337,10 +336,10 @@
 
 (defn split-body-and-msg-id [bytes]
   (let [body (String. bytes)]
-    (if (.startsWith body *teporingo-magic*)
+    (if (.startsWith body teporingo-magic)
       ;; split into: magic|msg-id|tstamp|wrapped-body
-      (let [[msg-id tstamp message-body] (vec (.split (.substring body (inc (.length *teporingo-magic*))) "\0" 3))]
-        (if (.startsWith message-body *teporingo-magic*)
+      (let [[msg-id tstamp message-body] (vec (.split (.substring body (inc (.length teporingo-magic))) "\0" 3))]
+        (if (.startsWith message-body teporingo-magic)
           (split-body-and-msg-id (.getBytes message-body))
           [msg-id tstamp message-body]))
       [nil nil body])))

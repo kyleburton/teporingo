@@ -1,3 +1,8 @@
+Look into using LUA Scripting in Redis:
+  http://www.redisgreen.net/blog/2013/03/18/intro-to-lua-for-redis-programmers/
+Replace the current deduplication logic with a Redis/LUA script.
+
+
 Message De-duplication:
   - De-dupe should be opt-in: if you're only using 1 broker, there is no point
 
