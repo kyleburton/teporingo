@@ -240,7 +240,7 @@
 
 
 (defn publish*
-  ([^Map publisher
+  ([^java.util.Map publisher
     ^String exchange
     ^String routing-key
     body
@@ -254,7 +254,7 @@
       *default-message-properties*
       body
       num-retries))
-  ([^Map publisher
+  ([^java.util.Map publisher
     ^String exchange
     ^String routing-key
     ^Boolean mandatory
