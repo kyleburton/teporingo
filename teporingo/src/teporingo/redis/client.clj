@@ -412,11 +412,15 @@
 
 
 ;; Hashes
-(defn hget
-  ([^String k ^String f]
-     (.hget *jedis* k f))
-  ([conn ^String k ^String f]
-     (.hget conn k f)))
+(defn hget [& args]
+  (cond
+    (isa? (class (first args)) String)
+    (let [[^String hash-name ^String key-name] args]
+      (.hget *jedis* hash-name key-name))
+
+    :first-arg-is-connection
+    (let [[conn hash-name key-name] args]
+      (.hget conn hash-name key-name))))
 
 (defn hmget [& args]
   (cond
@@ -429,10 +433,16 @@
       (seq (.hmget conn hash-name ^"[Ljava.lang.String;" (into-array String keys))))))
 
 (defn hset
-  ([^String k ^String f ^String v]
-     (.hset *jedis* k f v))
-  ([conn ^String k ^String f ^String v]
-     (.hset conn k f v)))
+  [& args]
+  (def args args)
+  (cond
+    (isa? (class (first args)) String)
+    (let [[^String hash-name ^String key-name ^String value] args]
+      (.hset *jedis* hash-name key-name value))
+
+    :first-arg-is-connection
+    (let [[conn ^String hash-name ^String key-name ^String value] args]
+      (.hset conn hash-name key-name value))))
 
 (defn hmset
   ([^String k h]
