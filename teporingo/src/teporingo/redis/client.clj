@@ -261,17 +261,25 @@
 
                                         ; Sets
 
-(defn sadd
-  ([^String k ^String m]
-     (.sadd *jedis* k m))
-  ([conn ^String k ^String m]
-     (.sadd conn k m)))
+(defn sadd [& args]
+  (cond
+    (isa? (class (first args)) String)
+    (let [[^String sname & members] args]
+      (.sadd *jedis* sname (into-array String members)))
 
-(defn srem
-  ([^String k ^String m]
-     (.srem *jedis* k m))
-  ([conn ^String k ^String m]
-     (.srem conn k m)))
+    :first-arg-is-connection
+    (let [[conn ^String sname & members] args]
+      (.sadd conn sname (into-array String members)))))
+
+(defn srem [& args]
+  (cond
+    (isa? (class (first args)) String)
+    (let [[^String sname & members] args]
+      (.srem *jedis* sname (into-array String members)))
+
+    :first-arg-is-connection
+    (let [[conn ^String sname & members] args]
+      (.srem conn sname (into-array String members)))))
 
 (defn spop
   ([^String k]
