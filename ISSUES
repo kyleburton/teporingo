@@ -1,0 +1,27 @@
+2.x: add-consumer / stop-consumer should take an optional count
+
+  When adding (or removing) multiple consumers, add/stop should take an
+  optional count that defaults to 1. This would allow common doseq's to be
+  factored out and make configuration more convienient.
+
+2.x: support a deserialize-fn in the consumer configuration
+
+  wrap-body-with-msg-id does mostly the right thing - it puts on the prefix,
+  but should treat the prefix entirely as a byte array (inclusive of the magic
+  bits).
+
+  The publisher configuration has a serializer-fn to help with automatic
+  serialization of published message bodies. Correspondingly, the consumer should
+  have a deserialize function that allows the opposite action to take place.
+
+  At this time, split-body-and-msg-id stands in the way of that - because it
+  always marshals the received message body into a string before stripping off
+  the magic/msg-id/timestamp. It must do this without effecting the body's byte
+  array and return the wrapped array unmodified (i.e. not transforming it to a
+  string).
+
+Token Bucket Filter
+
+  Use the Redis wrapper library to prototype a Token Bucket Filter.
+
+  src/teporingo/redis/tbf.clj
