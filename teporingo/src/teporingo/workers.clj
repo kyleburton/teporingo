@@ -16,7 +16,7 @@
   (let [worker-config (get-worker-config worker-name)]
     (doseq [t (:threads worker-config) ]
       (reset! (:stop t) true))
-    #_(swap! registry assoc-in [worker-name :threads] [])))
+    (swap! registry assoc-in [worker-name :threads] [])))
 
 (defn register [worker-name {:keys [worker-fn exception-fn ] :as config} ]
   (when (get @registry worker-name)
@@ -29,16 +29,13 @@
       (let [stop-atom (atom false)
             t         (Thread.
                        (fn []
-                         (try
-                          (loop []
-                            ((:worker-fn worker-config))
-                            (if-not @stop-atom
-                              (recur)))
-                          (log/infof "[%d] worker(%s) has been instructed exit" (.getId (Thread/currentThread)) worker-name)
-                          (catch Exception ex
-                            (log/fatalf ex "[%d] Error: worker(%s) encountered an exception" (.getId (Thread/currentThread)) worker-name)
-                            (when (:exception-fn worker-config)
-                              ((:exception-fn worker-config)))))))]
-        (swap! registry update-in [worker-name :threads]  conj  {:t t :stop stop-atom
-                                                                 :thread-id (.getId t)})
+                         (loop [stop @stop-atom]
+                           (when-not stop
+                             (try
+                              ((:worker-fn worker-config))
+                              (catch Exception ex
+                                (log/fatalf ex "[%d] Error: worker(%s) encountered an exception" (.getId (Thread/currentThread)) worker-name)))
+                             (recur @stop-atom)))))]
+        (swap! registry update-in [worker-name :threads] conj {:t t :stop stop-atom
+                                                               :thread-id (.getId t)})
         (.start t)))))
