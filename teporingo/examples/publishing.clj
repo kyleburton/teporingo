@@ -6,7 +6,7 @@
    [teporingo.publish :as pub]
    [teporingo.core    :as mq]
    [teporingo.broker  :as broker]
-   [clj-etl-utils.log :as log])
+   [clojure.tools.logging :as log])
   (:use
    [teporingo.core           :only [*reply-code* *reply-text* *exchange* *routing-key* *message-properties* *listener* *conn* *props* *body* *active* *confirm-type* *delivery-tag* *multiple* publisher publish]]
    [clj-etl-utils.lang-utils :only [raise]]))
