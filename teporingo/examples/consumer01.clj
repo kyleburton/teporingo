@@ -1,7 +1,7 @@
 (ns consumer
   (:require
    teporingo.redis
-   [clj-etl-utils.log :as log])
+   [clojure.tools.logging :as log])
   (:use
    teporingo.client
    [teporingo.core           :only [*body* *consumer-tag* *envelope* *message-id* *message-timestamp*]]

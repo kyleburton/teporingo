@@ -5,7 +5,7 @@
   (:require
    [teporingo.publish :as pub]
    [teporingo.core    :as mq]
-   [clj-etl-utils.log :as log])
+   [clojure.tools.logging :as log])
   (:use
    [teporingo.core           :only [*reply-code* *reply-text* *exchange* *routing-key* *message-properties* *listener* *conn* *props* *body* *active* *confirm-type* *delivery-tag* *multiple*]]
    [clj-etl-utils.lang-utils :only [raise]]))
