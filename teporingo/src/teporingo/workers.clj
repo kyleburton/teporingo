@@ -3,10 +3,8 @@
    [clojure.tools.logging    :as log]
    [clj-etl-utils.lang-utils :refer [raise]]))
 
-(def registry (atom {}))
+(defonce registry (atom {}))
 
-(defn register [worker-name {:keys [worker-fn exception-fn ] :as config} ]
-  (swap! registry assoc worker-name (merge config {:threads []})))
 
 (defn- get-worker-config [worker-name]
   (let [worker-config (get @registry worker-name)]
@@ -18,23 +16,29 @@
   (let [worker-config (get-worker-config worker-name)]
     (doseq [t (:threads worker-config) ]
       (reset! (:stop t) true))
-    (swap! registry assoc-in [worker-name :threads] [])))
+    #_(swap! registry assoc-in [worker-name :threads] [])))
+
+(defn register [worker-name {:keys [worker-fn exception-fn ] :as config} ]
+  (when (get @registry worker-name)
+    (stop-workers worker-name))
+  (swap! registry assoc worker-name (merge config {:threads []})))
 
 (defn start-workers [worker-name number]
   (let [worker-config (get-worker-config worker-name)]
     (dotimes [_ number]
       (let [stop-atom (atom false)
-            t (Thread.
-               (fn []
-                 (try
-                  (loop []
-                    ((:worker-fn worker-config))
-                    (if-not @stop-atom
-                      (recur)))
-                  (log/infof "worker(%s) has been instructed exit" worker-name)
-                  (catch Exception ex
-                    (log/fatalf ex "Error: worker(%s) encountered an exception" worker-name)
-                    (when (:exception-fn worker-config)
-                      ((:exception-fn worker-config)))))))]
-        (swap! registry update-in [worker-name :threads]  conj  {:t t :stop stop-atom})
+            t         (Thread.
+                       (fn []
+                         (try
+                          (loop []
+                            ((:worker-fn worker-config))
+                            (if-not @stop-atom
+                              (recur)))
+                          (log/infof "[%d] worker(%s) has been instructed exit" (.getId (Thread/currentThread)) worker-name)
+                          (catch Exception ex
+                            (log/fatalf ex "[%d] Error: worker(%s) encountered an exception" (.getId (Thread/currentThread)) worker-name)
+                            (when (:exception-fn worker-config)
+                              ((:exception-fn worker-config)))))))]
+        (swap! registry update-in [worker-name :threads]  conj  {:t t :stop stop-atom
+                                                                 :thread-id (.getId t)})
         (.start t)))))

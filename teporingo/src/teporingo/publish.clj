@@ -12,7 +12,7 @@
    [com.github.kyleburton.teporingo
     BreakerOpenException MaxPublishRetriesExceededException])
   (:require
-   [clj-etl-utils.log :as log]
+   [clojure.tools.logging :as log]
    [rn.clorine.pool   :as pool]
    [teporingo.breaker :as breaker]
    [teporingo.broker  :as broker])

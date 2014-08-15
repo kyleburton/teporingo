@@ -17,7 +17,7 @@
    [java.util UUID]
    [com.github.kyleburton.teporingo BreakerOpenException])
   (:require
-   [clj-etl-utils.log :as log]
+   [clojure.tools.logging :as log]
    [teporingo.breaker :as breaker]
    [rn.clorine.pool   :as pool]
    [clojure.data.json :as json])

@@ -3,7 +3,7 @@
    [redis.clients.jedis
     Jedis JedisPool JedisPoolConfig Protocol])
   (require
-   [clj-etl-utils.log :as log])
+   [clojure.tools.logging :as log])
   (:use
    teporingo.redis.bindings
    [teporingo.core :only [*message-id* *consumer-tag*]]

@@ -19,7 +19,7 @@
     AMQP$BasicProperties
     ShutdownSignalException])
   (:require
-   [clj-etl-utils.log :as log]
+   [clojure.tools.logging :as log]
    [teporingo.broker  :as broker]
    [teporingo.publish :as pub])
   (:use
