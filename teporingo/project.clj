@@ -1,4 +1,4 @@
-(defproject com.github.kyleburton/teporingo "2.1.32-SNAPSHOT"
+(defproject com.github.kyleburton/teporingo "2.1.32"
   :description "Teporingo: Rabbit Client Library"
   :url         "http://github.com/kyleburton/teporingo"
   :lein-release {:deploy-via :clojars :scm :git}
@@ -32,10 +32,10 @@
   :aliases              {"all" ["with-profile" "dev,1.2:dev,1.3:dev,1.4:dev,1.5:dev,1.6"]}
   :global-vars          {*warn-on-reflection* true}
   :dependencies         [
-                         [log4j/log4j                          "1.2.14"]
+                         [org.apache.logging.log4j/log4j "2.15.0" :extension "pom"]
                          [redis.clients/jedis                  "2.1.0"]
                          [com.rabbitmq/amqp-client             "3.0.2"]
-                         [com.github.kyleburton/clj-etl-utils  "1.0.76"]
+                         [com.github.kyleburton/clj-etl-utils  "1.0.98"]
                          [com.relaynetwork/clorine             "1.0.17"]
                          ]
 )
